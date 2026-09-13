@@ -1,15 +1,11 @@
-import createNextIntlPlugin from 'next-intl/plugin';
-
-const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  images: {
-    remotePatterns: [
-      { protocol: 'https', hostname: 'a0ai.marscode.cn' },
-    ],
+  // Keep database/cache drivers out of the server bundle so their runtime
+  // type checks (e.g. `value instanceof Date` in postgres-js) keep working.
+  experimental: {
+    serverComponentsExternalPackages: ['postgres', 'ioredis'],
   },
 };
 
-export default withNextIntl(nextConfig);
+export default nextConfig;

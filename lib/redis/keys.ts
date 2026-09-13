@@ -1,0 +1,44 @@
+/**
+ * Centralized Redis key registry.
+ *
+ * Rule of thumb (PostgreSQL = source of truth, Redis = ephemeral acceleration):
+ * - sessions      : authoritative login state, TTL bounded
+ * - caches        : derived data, must be invalidated on the matching write path
+ * - rate limits   : sliding window counters, safe to expire
+ *
+ * Never read business truth from a cache key that is stale by design; every
+ * cached entity is loaded back from PostgreSQL on a miss.
+ */
+
+const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
+const TOKEN_TTL_SECONDS = 60; // api key → user/token lookup
+const MODEL_TTL_SECONDS = 300;
+const SETTINGS_TTL_SECONDS = 120;
+
+export const redisTtl = {
+  session: SESSION_TTL_SECONDS,
+  token: TOKEN_TTL_SECONDS,
+  model: MODEL_TTL_SECONDS,
+  settings: SETTINGS_TTL_SECONDS,
+} as const;
+
+export const redisKeys = {
+  /** Login sessions: session:{sid} */
+  session: (sid: string) => `session:${sid}`,
+
+  /** API key resolution cache: apikey:{sha256} */
+  apiKey: (keyHash: string) => `apikey:${keyHash}`,
+
+  /** Enabled catalog cache (single payload). */
+  modelCatalog: () => 'catalog:models:enabled',
+  modelById: (id: string) => `catalog:model:${id}`,
+  modelByPublicId: (modelId: string) => `catalog:model-pid:${modelId}`,
+
+  /** Global settings payload. */
+  settings: () => 'config:settings',
+
+  /** Gateway sliding-window request counter per token (window handled by caller). */
+  gatewayRpm: (tokenId: string) => `gw:rpm:${tokenId}`,
+  /** In-flight concurrency guard per user. */
+  gatewayConcurrency: (userId: string) => `gw:conc:${userId}`,
+} as const;

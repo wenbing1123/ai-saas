@@ -12,8 +12,7 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:migrate": "drizzle-kit migrate",
-    "graph:dev": "npx @langchain/langgraph-cli dev --port 8123",
-    "graph:up": "npx @langchain/langgraph-cli up --port 8123"
+    "db:seed": "node --env-file=.env scripts/seed.mts"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.0",

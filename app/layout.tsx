@@ -1,17 +1,15 @@
 import type { Metadata, Viewport } from 'next';
-import { getMessages, getLocale } from 'next-intl/server';
-import { IntlProvider } from '@/components/IntlProvider';
-import { timeZone } from '@/i18n/request';
+import { getLocale } from '@/lib/i18n/server';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'AI SaaS Platform',
-    template: '%s | AI SaaS Platform',
+    default: 'Nebula API — Cheaper Claude, GPT & Gemini tokens for coding agents',
+    template: '%s | Nebula API',
   },
-  description: 'Enterprise-grade AI agent platform powered by LangGraph',
-  keywords: ['ai', 'saas', 'langgraph', 'agents', 'llm'],
-  authors: [{ name: 'AI SaaS Team' }],
+  description:
+    'Pay-as-you-go AI tokens with OpenAI- and Anthropic-compatible endpoints. Built for Claude Code, Codex and any OpenAI client — lower prices, no subscriptions lock-in.',
+  keywords: ['ai api', 'llm tokens', 'claude code', 'codex', 'openai compatible', 'anthropic compatible', 'cheap gpt', 'cheap claude'],
 };
 
 export const viewport: Viewport = {
@@ -23,21 +21,11 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default async function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const locale = await getLocale();
-  const messages = await getMessages();
-
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = getLocale();
   return (
     <html lang={locale} suppressHydrationWarning>
-      <body className="min-h-screen bg-background font-sans">
-        <IntlProvider locale={locale} messages={messages} timeZone={timeZone}>
-          {children}
-        </IntlProvider>
-      </body>
+      <body className="min-h-screen bg-background font-sans antialiased">{children}</body>
     </html>
   );
 }

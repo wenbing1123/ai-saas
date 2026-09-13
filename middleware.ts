@@ -1,51 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const SUPPORTED_LOCALES = ['en', 'zh'] as const;
-type Locale = (typeof SUPPORTED_LOCALES)[number];
+const LOCALE_COOKIE = 'nebula_locale';
 
-function detectLocale(request: NextRequest): Locale {
-  const cookieLocale = request.cookies.get('next-intl-locale')?.value;
-  if (cookieLocale && SUPPORTED_LOCALES.includes(cookieLocale as Locale)) {
-    return cookieLocale as Locale;
-  }
+/**
+ * Auto-detect locale on first visit:
+ *   - geo country headers (Vercel / Cloudflare): CN → Chinese
+ *   - fallback: Accept-Language preference starting with zh
+ * The result is exposed to server components via the `x-nebula-locale`
+ * request header (correct first paint) and persisted in a cookie.
+ * An existing cookie (user's explicit choice) always wins.
+ */
+function detectLocale(req: NextRequest): 'zh' | 'en' {
+  const country =
+    req.headers.get('x-vercel-ip-country') ?? req.headers.get('cf-ipcountry');
+  if (country) return country.toUpperCase() === 'CN' ? 'zh' : 'en';
 
-  const acceptLanguage = request.headers.get('accept-language') ?? '';
-  const preferred = acceptLanguage
-    .split(',')[0]
-    .trim()
-    .split('-')[0]
-    .toLowerCase();
-
-  if (preferred.startsWith('zh')) {
-    return 'zh';
-  }
-
-  return 'en';
+  const lang = req.headers.get('accept-language') ?? '';
+  return /(?:^|,)\s*zh(?:[-_;,\s)]|$)/i.test(lang) ? 'zh' : 'en';
 }
 
-export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+export function middleware(req: NextRequest) {
+  const locale = detectLocale(req);
 
-  if (pathname.startsWith('/api') || pathname.startsWith('/_next')) {
-    return NextResponse.next();
-  }
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set('x-nebula-locale', locale);
 
-  const locale = detectLocale(request);
-  const response = NextResponse.next();
+  const res = NextResponse.next({ request: { headers: requestHeaders } });
 
-  if (!request.cookies.has('next-intl-locale')) {
-    response.cookies.set('next-intl-locale', locale, {
+  const existing = req.cookies.get(LOCALE_COOKIE)?.value;
+  if (existing !== 'zh' && existing !== 'en') {
+    res.cookies.set(LOCALE_COOKIE, locale, {
       path: '/',
       maxAge: 60 * 60 * 24 * 365,
       sameSite: 'lax',
     });
   }
-
-  return response;
+  return res;
 }
 
 export const config = {
   matcher: [
-    '/((?!api|_next|_vercel|.*\\..*).*)',
+    // All pages except Next internals, static assets, and API/gateway routes.
+    '/((?!_next/static|_next/image|favicon\\.ico|api/|v1/|anthropic/|[^?]*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|webmanifest)$).*)',
   ],
 };
