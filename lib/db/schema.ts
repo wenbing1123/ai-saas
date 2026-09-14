@@ -12,6 +12,7 @@ import {
   jsonb,
   index,
   uniqueIndex,
+  unique,
   check,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
@@ -28,7 +29,9 @@ import {
   TokenStatus,
   UsageStatus,
   LedgerType,
+  CampaignType,
   DocLocale,
+  Currency,
 } from './enums';
 
 /**
@@ -238,7 +241,15 @@ export const models = pgTable(
     supportsTools: boolean('supports_tools').notNull().default(true),
     supportsReasoning: boolean('supports_reasoning').notNull().default(false),
 
-    // ---- Our procurement cost (USD per 1M tokens) ----
+    /**
+     * Procurement currency of this model's cost & sell prices.
+     * 1 = USD (OpenAI / Anthropic / Google…), 2 = RMB (DeepSeek / Zhipu /
+     * Doubao / Alibaba…). Prices are stored in this native currency and
+     * converted to USD at billing time using the platform forex rate + buffer.
+     */
+    costCurrency: smallint('cost_currency').notNull().default(Currency.USD).$type<Currency>(),
+
+    // ---- Our procurement cost (native currency per 1M tokens) ----
     inputCostPer1m: numeric('input_cost_per_1m', { precision: 12, scale: 6 }).notNull().default('0'),
     outputCostPer1m: numeric('output_cost_per_1m', { precision: 12, scale: 6 }).notNull().default('0'),
     cacheReadCostPer1m: numeric('cache_read_cost_per_1m', { precision: 12, scale: 6 }).notNull().default('0'),
@@ -270,7 +281,8 @@ export const models = pgTable(
     sellCacheReadCheck: check('biz_model_sell_cache_read_ge_cost', sql`${t.sellCacheReadPer1m} >= ${t.cacheReadCostPer1m}`),
     sellCacheWriteCheck: check('biz_model_sell_cache_write_ge_cost', sql`${t.sellCacheWritePer1m} >= ${t.cacheWriteCostPer1m}`),
     markupCheck: check('biz_model_markup_non_negative', sql`${t.markupPercent} >= 0`),
-    providerCheck: check('biz_model_provider_check', sql`${t.provider} BETWEEN 1 AND 6`),
+    providerCheck: check('biz_model_provider_check', sql`${t.provider} BETWEEN 1 AND 10`),
+    costCurrencyCheck: check('biz_model_cost_currency_check', sql`${t.costCurrency} IN (1, 2)`),
     protocolCheck: check('biz_model_protocol_check', sql`${t.protocol} IN (1, 2)`),
   }),
 );
@@ -329,6 +341,9 @@ export const orders = pgTable(
     periodStart: timestamp('period_start', { withTimezone: true }),
     periodEnd: timestamp('period_end', { withTimezone: true }),
     paidAt: timestamp('paid_at', { withTimezone: true }),
+    /** Refund bookkeeping. refundedAmountCents is 0 until a refund is issued. */
+    refundedAt: timestamp('refunded_at', { withTimezone: true }),
+    refundedAmountCents: bigint('refunded_amount_cents', { mode: 'bigint' }).notNull().default(sql`0`),
   },
   (t) => ({
     orderNoUnique: uniqueIndex('biz_order_no_unique').on(t.orderNo).where(sql`${t.deleted} = 0`),
@@ -455,7 +470,7 @@ export const creditLedger = pgTable(
   (t) => ({
     userIdx: index('bill_credit_ledger_user_idx').on(t.userId, t.createdAt),
     typeIdx: index('bill_credit_ledger_type_idx').on(t.type),
-    typeCheck: check('bill_credit_ledger_type_check', sql`${t.type} BETWEEN 1 AND 5`),
+    typeCheck: check('bill_credit_ledger_type_check', sql`${t.type} BETWEEN 1 AND 6`),
   }),
 );
 
@@ -488,6 +503,54 @@ export const docPages = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// mkt_*  marketing campaigns (sign-up bonus, invite rewards, ...)
+// ---------------------------------------------------------------------------
+
+export const campaigns = pgTable(
+  'mkt_campaign',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    type: smallint('type').notNull().$type<CampaignType>(),
+    name: varchar('name', { length: 120 }).notNull(),
+    rewardCents: integer('reward_cents').notNull(),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull().defaultNow(),
+    endsAt: timestamp('ends_at', { withTimezone: true }),
+    enabled: boolean('enabled').notNull().default(true),
+    perUserLimit: integer('per_user_limit').notNull().default(1),
+    totalBudgetCents: bigint('total_budget_cents', { mode: 'number' }),
+    consumedBudgetCents: bigint('consumed_budget_cents', { mode: 'number' }).notNull().default(0),
+    config: jsonb('config').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    typeIdx: index('mkt_campaign_type_idx').on(t.type, t.enabled),
+    typeCheck: check('mkt_campaign_type_check', sql`${t.type} BETWEEN 1 AND 2`),
+    rewardCheck: check('mkt_campaign_reward_check', sql`${t.rewardCents} >= 0`),
+  }),
+);
+
+export const campaignRecords = pgTable(
+  'mkt_campaign_record',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    campaignId: uuid('campaign_id')
+      .notNull()
+      .references(() => campaigns.id),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    rewardCents: integer('reward_cents').notNull(),
+    meta: jsonb('meta').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userIdx: index('mkt_campaign_record_user_idx').on(t.userId, t.campaignId),
+    uniqUserCampaign: unique('mkt_campaign_record_uniq').on(t.campaignId, t.userId),
+  }),
+);
+
+// ---------------------------------------------------------------------------
 // Inferred row types
 // ---------------------------------------------------------------------------
 
@@ -511,3 +574,5 @@ export type TranslationRow = typeof translations.$inferSelect;
 export type NewTranslationRow = typeof translations.$inferInsert;
 export type DocPageRow = typeof docPages.$inferSelect;
 export type NewDocPageRow = typeof docPages.$inferInsert;
+export type CampaignRow = typeof campaigns.$inferSelect;
+export type NewCampaignRow = typeof campaigns.$inferInsert;

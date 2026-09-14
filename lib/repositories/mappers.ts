@@ -82,6 +82,7 @@ export function mapModel(row: ModelRow): Model {
     supportsVision: row.supportsVision,
     supportsTools: row.supportsTools,
     supportsReasoning: row.supportsReasoning,
+    costCurrency: row.costCurrency,
     inputCostPer1m: n(row.inputCostPer1m),
     outputCostPer1m: n(row.outputCostPer1m),
     cacheReadCostPer1m: n(row.cacheReadCostPer1m),
@@ -137,6 +138,8 @@ export function mapOrder(row: OrderRow): Order {
     periodEnd: row.periodEnd,
     createdAt: row.createdAt,
     paidAt: row.paidAt,
+    refundedAt: row.refundedAt,
+    refundedAmountCents: Number(row.refundedAmountCents),
   };
 }
 

@@ -143,6 +143,56 @@ export async function markOrderPaid(orderId: string, paymentRef?: string): Promi
   });
 }
 
+/**
+ * Mark an order refunded. Reverses the credit grant (balance -= creditCents,
+ * may go negative) and writes a refund ledger entry. Idempotent.
+ */
+export async function markOrderRefunded(orderId: string, amountCents?: number): Promise<Order | null> {
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    const locked = await tx
+      .select()
+      .from(orders)
+      .where(and(eq(orders.id, orderId), eq(orders.deleted, 0)))
+      .for('update');
+    if (locked.length === 0) return null;
+    const orderRow = locked[0];
+    if (orderRow.status !== OrderStatus.Paid) return mapOrder(orderRow);
+
+    const refundCents = BigInt(amountCents ?? Number(orderRow.amountCents));
+    const now = new Date();
+
+    const updatedOrder = await tx
+      .update(orders)
+      .set({
+        status: OrderStatus.Refunded,
+        refundedAt: now,
+        refundedAmountCents: refundCents,
+      })
+      .where(eq(orders.id, orderId))
+      .returning();
+
+    // Reverse the credit grant. Balance may go negative if it was already spent.
+    const balanceRows = await tx
+      .update(users)
+      .set({ balanceCents: sql`balance_cents - ${orderRow.creditCents}`, updatedAt: now })
+      .where(and(eq(users.id, orderRow.userId), eq(users.deleted, 0)))
+      .returning({ balanceCents: users.balanceCents });
+
+    await tx.insert(creditLedger).values({
+      userId: orderRow.userId,
+      type: LedgerType.Refund,
+      amountCents: BigInt(-Number(orderRow.creditCents)),
+      balanceAfterCents: BigInt(balanceRows[0]!.balanceCents),
+      refType: 'order',
+      refId: orderRow.id,
+      note: `Refunded order ${orderRow.orderNo}`,
+    });
+
+    return mapOrder(updatedOrder[0]);
+  });
+}
+
 export async function getPaidRevenue(since: Date): Promise<{ orders: number; amountCents: number; creditCents: number }> {
   const db = getDb();
   const rows = await db.execute<{ orders: number; amount: string; credit: string }>(sql`

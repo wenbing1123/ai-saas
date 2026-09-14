@@ -22,6 +22,12 @@ export function PurchaseButton({ plan, variant, locale }: { plan: Plan; variant?
     startTransition(async () => {
       const result = await purchasePlanAction(plan.id);
       if (result.ok && result.data) {
+        if (result.data.redirectUrl) {
+          // Hosted checkout (Stripe). Redirect away from the app.
+          window.location.assign(result.data.redirectUrl);
+          return;
+        }
+        // Sandbox/manual: paid instantly.
         setPurchasedNo(result.data.orderNo);
         router.refresh();
       } else {

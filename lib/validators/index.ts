@@ -48,6 +48,7 @@ export const modelFormSchema = z.object({
   supportsVision: z.coerce.boolean().default(false),
   supportsTools: z.coerce.boolean().default(true),
   supportsReasoning: z.coerce.boolean().default(false),
+  costCurrency: z.enum(['usd', 'rmb']).default('usd'),
   inputCostPer1m: z.coerce.number().nonnegative(),
   outputCostPer1m: z.coerce.number().nonnegative(),
   cacheReadCostPer1m: z.coerce.number().nonnegative(),
@@ -112,6 +113,8 @@ export const settingsFormSchema = z.object({
   default_concurrency: z.coerce.number().int().positive(),
   low_balance_cents: z.coerce.number().int().positive(),
   maintenance_mode: z.coerce.boolean().default(false),
+  forex_rate_rmb_per_usd: z.coerce.number().positive(),
+  forex_buffer_percent: z.coerce.number().min(0).max(50),
 });
 
 export const adjustBalanceSchema = z.object({

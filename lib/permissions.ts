@@ -24,6 +24,8 @@ export const PERMISSION_CODES = {
   modelManage: 'model:manage',
   planView: 'plan:view',
   planManage: 'plan:manage',
+  orderViewAll: 'order:view_all',
+  orderManage: 'order:manage',
   userView: 'user:view',
   userManage: 'user:manage',
   roleView: 'role:view',

@@ -7,10 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import { ToggleModelButton } from '@/components/admin/ToggleModelButton';
 import { requireAdmin } from '@/lib/server/auth';
 import { listModels } from '@/lib/repositories/models';
-import { formatPricePerM } from '@/lib/server/pricing';
+import { formatPricePerMIn } from '@/lib/server/pricing';
 import { getLocale } from '@/lib/i18n/server';
 import { getDict } from '@/lib/i18n';
-import { PROVIDER_LABELS, PROTOCOL_LABELS } from '@/lib/db/enums';
+import { PROVIDER_LABELS, PROTOCOL_LABELS, CURRENCY_SYMBOLS } from '@/lib/db/enums';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,6 +54,8 @@ export default async function AdminModelsPage() {
                 {models.map((m) => {
                   const inputMargin = m.sellInputPer1m > 0 ? ((m.sellInputPer1m - m.inputCostPer1m) / m.sellInputPer1m) * 100 : 0;
                   const profitable = m.sellInputPer1m >= m.inputCostPer1m && m.sellOutputPer1m >= m.outputCostPer1m;
+                  const sym = CURRENCY_SYMBOLS[m.costCurrency] ?? '$';
+                  const fmt = (v: number) => formatPricePerMIn(v, sym);
                   return (
                     <tr key={m.id} className="border-b last:border-0">
                       <td className="py-3 pr-4">
@@ -63,12 +65,13 @@ export default async function AdminModelsPage() {
                       <td className="py-3 pr-4">
                         <Badge variant="outline">{PROVIDER_LABELS[m.provider]}</Badge>
                         <span className="ml-2 text-xs text-muted-foreground">{PROTOCOL_LABELS[m.protocol]}</span>
+                        <span className="ml-2 text-xs font-medium text-amber-600 dark:text-amber-400">{sym}</span>
                       </td>
                       <td className="py-3 pr-4 text-right font-mono text-xs tabular-nums text-muted-foreground">
-                        {formatPricePerM(m.inputCostPer1m)} / {formatPricePerM(m.outputCostPer1m)}
+                        {fmt(m.inputCostPer1m)} / {fmt(m.outputCostPer1m)}
                       </td>
                       <td className="py-3 pr-4 text-right font-mono text-xs tabular-nums">
-                        {formatPricePerM(m.sellInputPer1m)} / {formatPricePerM(m.sellOutputPer1m)}
+                        {fmt(m.sellInputPer1m)} / {fmt(m.sellOutputPer1m)}
                       </td>
                       <td className="py-3 pr-4 text-right">
                         <Badge variant={profitable ? 'secondary' : 'destructive'}>

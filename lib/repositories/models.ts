@@ -3,7 +3,7 @@ import { getDb } from '@/lib/db/client';
 import { models } from '@/lib/db/schema';
 import { mapModel } from './mappers';
 import type { Model } from '@/lib/types';
-import { PROVIDER_CODES, PROTOCOL_CODES } from '@/lib/db/enums';
+import { PROVIDER_CODES, PROTOCOL_CODES, CURRENCY_CODES, Currency } from '@/lib/db/enums';
 import { cache, prefixedKey, getRedis } from '@/lib/redis/client';
 import { redisKeys, redisTtl } from '@/lib/redis/keys';
 
@@ -21,6 +21,8 @@ export interface ModelWriteInput {
   supportsVision: boolean;
   supportsTools: boolean;
   supportsReasoning: boolean;
+  /** Wire label 'usd' | 'rmb' — converted to Currency enum on write. */
+  costCurrency: string;
   inputCostPer1m: string;
   outputCostPer1m: string;
   cacheReadCostPer1m: string;
@@ -107,6 +109,7 @@ export async function createModel(input: ModelWriteInput) {
       supportsVision: input.supportsVision,
       supportsTools: input.supportsTools,
       supportsReasoning: input.supportsReasoning,
+      costCurrency: CURRENCY_CODES[input.costCurrency] ?? Currency.USD,
       inputCostPer1m: input.inputCostPer1m,
       outputCostPer1m: input.outputCostPer1m,
       cacheReadCostPer1m: input.cacheReadCostPer1m,
@@ -128,13 +131,14 @@ export async function createModel(input: ModelWriteInput) {
 
 export async function updateModel(id: string, patch: Partial<ModelWriteInput>) {
   const db = getDb();
-  const { provider, protocol, ...rest } = patch;
+  const { provider, protocol, costCurrency, ...rest } = patch;
   const rows = await db
     .update(models)
     .set({
       ...rest,
       ...(provider !== undefined ? { provider: PROVIDER_CODES[provider]! } : {}),
       ...(protocol !== undefined ? { protocol: PROTOCOL_CODES[protocol]! } : {}),
+      ...(costCurrency !== undefined ? { costCurrency: CURRENCY_CODES[costCurrency] ?? Currency.USD } : {}),
       updatedAt: new Date(),
     })
     .where(and(eq(models.id, id), eq(models.deleted, 0)))

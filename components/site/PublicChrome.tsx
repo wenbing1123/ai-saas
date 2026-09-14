@@ -12,7 +12,7 @@ export async function PublicHeader() {
   const locale = getLocale();
   const t = getDict(locale);
   return (
-    <header className="relative border-b bg-background/80 backdrop-blur">
+    <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur">
       <div className="container flex h-16 items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">

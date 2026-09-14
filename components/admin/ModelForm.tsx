@@ -19,22 +19,24 @@ import {
 } from '@/lib/server/pricing';
 import { cn } from '@/lib/utils';
 import { getDict, type Locale } from '@/lib/i18n';
-import { PROVIDER_LABELS, PROTOCOL_LABELS } from '@/lib/db/enums';
+import { PROVIDER_LABELS, PROTOCOL_LABELS, CURRENCY_CODES, CURRENCY_LABELS, CURRENCY_SYMBOLS, Currency } from '@/lib/db/enums';
 
 type ModelAction = (_prev: ActionResult, formData: FormData) => Promise<ActionResult>;
 
-const PROVIDERS = ['openai', 'anthropic', 'google', 'deepseek', 'azure', 'custom'];
+const PROVIDERS = ['deepseek', 'zhipu', 'doubao', 'alibaba', 'moonshot', 'openai', 'anthropic', 'google', 'azure', 'custom'];
 
 /** Form state keeps wire labels (strings); the repository maps them to enum codes. */
-type ModelFormState = Omit<Model, 'provider' | 'protocol'> & {
+type ModelFormState = Omit<Model, 'provider' | 'protocol' | 'costCurrency'> & {
   provider: string;
   protocol: 'openai' | 'anthropic';
+  costCurrency: string;
 };
 
 const initialForm: ModelFormState = {
   id: '',
-  provider: 'openai',
+  provider: 'deepseek',
   protocol: 'openai',
+  costCurrency: 'rmb',
   modelId: '',
   upstreamModel: '',
   baseUrl: '',
@@ -67,15 +69,18 @@ export function ModelForm({
   model,
   infraSurcharge,
   targetProfit,
+  forexRate,
   action,
 }: {
   locale: Locale;
   mode: 'create' | 'edit';
   model?: Model;
-  /** Amortized infra cost per 1M tokens, from platform settings. */
+  /** Amortized infra cost per 1M tokens in USD, from platform settings. */
   infraSurcharge: number;
   /** Target profit % guaranteed on top of (cost + infra). */
   targetProfit: number;
+  /** RMB per USD exchange rate, used to express the infra surcharge in RMB. */
+  forexRate: number;
   action: ModelAction;
 }) {
   const router = useRouter();
@@ -87,7 +92,12 @@ export function ModelForm({
 
   const [f, setF] = useState<ModelFormState>(
     model
-      ? { ...model, provider: PROVIDER_LABELS[model.provider], protocol: PROTOCOL_LABELS[model.protocol] as ModelFormState['protocol'] }
+      ? {
+          ...model,
+          provider: PROVIDER_LABELS[model.provider],
+          protocol: PROTOCOL_LABELS[model.protocol] as ModelFormState['protocol'],
+          costCurrency: CURRENCY_LABELS[model.costCurrency].toLowerCase(),
+        }
       : { ...initialForm, markupPercent: targetProfit },
   );
   const set = <K extends keyof ModelFormState>(key: K, value: ModelFormState[K]) =>
@@ -95,13 +105,19 @@ export function ModelForm({
   const setNum = (key: keyof ModelFormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setF((prev) => ({ ...prev, [key]: Number(e.target.value) }));
 
+  const sym = CURRENCY_SYMBOLS[CURRENCY_CODES[f.costCurrency] ?? Currency.USD] ?? '$';
+  // Infra surcharge is denominated in USD; express it in the model's native
+  // currency before adding it. RMB uses the full (unbuffered) rate, which
+  // slightly over-covers the infra cost after the billing-side buffer.
+  const nativeSurcharge = f.costCurrency === 'rmb' ? infraSurcharge * forexRate : infraSurcharge;
+
   const recommended = recommendSellPrices({
     inputCostPer1m: f.inputCostPer1m,
     outputCostPer1m: f.outputCostPer1m,
     cacheReadCostPer1m: f.cacheReadCostPer1m,
     cacheWriteCostPer1m: f.cacheWriteCostPer1m,
     markupPercent: f.markupPercent || targetProfit,
-    infraSurchargePer1m: infraSurcharge,
+    infraSurchargePer1m: nativeSurcharge,
   });
 
   const sell = autoPrices
@@ -121,7 +137,7 @@ export function ModelForm({
       cacheRead: f.cacheReadCostPer1m,
       cacheWrite: f.cacheWriteCostPer1m,
     },
-    infraSurcharge,
+    nativeSurcharge,
   );
 
   const violations = validatePricing(effectiveCost, sell, targetProfit);
@@ -133,6 +149,7 @@ export function ModelForm({
     const append = (k: string, v: string | number) => fd.set(k, String(v));
     append('provider', f.provider);
     append('protocol', f.protocol);
+    append('costCurrency', f.costCurrency);
     append('modelId', f.modelId);
     append('upstreamModel', f.upstreamModel);
     if (f.baseUrl) fd.set('baseUrl', f.baseUrl);
@@ -206,6 +223,13 @@ export function ModelForm({
             onChange={(e) => set('protocol', e.target.value as ModelFormState['protocol'])}
             options={['openai', 'anthropic']}
           />
+          <Select
+            label={fm.costCurrency}
+            name="costCurrency"
+            value={f.costCurrency}
+            onChange={(e) => set('costCurrency', e.target.value)}
+            options={['rmb', 'usd']}
+          />
           <Text label={fm.upstreamModel} name="upstreamModel" required value={f.upstreamModel}
             onChange={(e) => set('upstreamModel', e.target.value)}
             error={result.fieldErrors?.upstreamModel}
@@ -229,7 +253,7 @@ export function ModelForm({
         </div>
       </Section>
 
-      <Section title={fm.procurementCost}>
+      <Section title={`${fm.procurementCost} · ${sym} (${f.costCurrency.toUpperCase()})`}>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Num label={fm.inputCost} name="inputCostPer1m" value={f.inputCostPer1m} onChange={setNum('inputCostPer1m')} step={0.01} />
           <Num label={fm.outputCost} name="outputCostPer1m" value={f.outputCostPer1m} onChange={setNum('outputCostPer1m')} step={0.01} />
@@ -273,16 +297,16 @@ export function ModelForm({
               </tr>
             </thead>
             <tbody>
-              <PriceRow label={fm.input} cost={f.inputCostPer1m} effective={effectiveCost.input} sell={sell.input} retail={f.retailInputPer1m}
+              <PriceRow label={fm.input} sym={sym} cost={f.inputCostPer1m} effective={effectiveCost.input} sell={sell.input} retail={f.retailInputPer1m}
                 readOnly={autoPrices} loss={fm.loss} saveLabel={fm.save}
                 onSellChange={(v) => set('sellInputPer1m', v)} />
-              <PriceRow label={fm.output} cost={f.outputCostPer1m} effective={effectiveCost.output} sell={sell.output} retail={f.retailOutputPer1m}
+              <PriceRow label={fm.output} sym={sym} cost={f.outputCostPer1m} effective={effectiveCost.output} sell={sell.output} retail={f.retailOutputPer1m}
                 readOnly={autoPrices} loss={fm.loss} saveLabel={fm.save}
                 onSellChange={(v) => set('sellOutputPer1m', v)} />
-              <PriceRow label={fm.cacheRead} cost={f.cacheReadCostPer1m} effective={effectiveCost.cacheRead} sell={sell.cacheRead} readOnly={autoPrices}
+              <PriceRow label={fm.cacheRead} sym={sym} cost={f.cacheReadCostPer1m} effective={effectiveCost.cacheRead} sell={sell.cacheRead} readOnly={autoPrices}
                 loss={fm.loss} saveLabel={fm.save}
                 onSellChange={(v) => set('sellCacheReadPer1m', v)} />
-              <PriceRow label={fm.cacheWrite} cost={f.cacheWriteCostPer1m} effective={effectiveCost.cacheWrite} sell={sell.cacheWrite} readOnly={autoPrices}
+              <PriceRow label={fm.cacheWrite} sym={sym} cost={f.cacheWriteCostPer1m} effective={effectiveCost.cacheWrite} sell={sell.cacheWrite} readOnly={autoPrices}
                 loss={fm.loss} saveLabel={fm.save}
                 onSellChange={(v) => set('sellCacheWritePer1m', v)} />
             </tbody>
@@ -419,6 +443,7 @@ function Check({ label, checked, onChange }: { label: string; checked: boolean; 
 
 function PriceRow({
   label,
+  sym,
   cost,
   effective,
   sell,
@@ -429,6 +454,8 @@ function PriceRow({
   onSellChange,
 }: {
   label: string;
+  /** Native currency symbol for this model ($ / ¥). */
+  sym: string;
   cost: number;
   /** Fully-loaded cost (model procurement + amortized infra). */
   effective: number;
@@ -446,9 +473,9 @@ function PriceRow({
     <tr className="border-b last:border-0">
       <td className="px-4 py-2.5 font-medium">{label}</td>
       <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-muted-foreground">
-        ${cost.toFixed(4)}
+        {sym}{cost.toFixed(4)}
         {effective > cost && (
-          <span className="ml-1 opacity-70">(+${(effective - cost).toFixed(4)})</span>
+          <span className="ml-1 opacity-70">(+{sym}{(effective - cost).toFixed(4)})</span>
         )}
       </td>
       <td className="px-4 py-2.5 text-right">

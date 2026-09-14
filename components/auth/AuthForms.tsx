@@ -2,7 +2,7 @@
 
 import { useFormState } from 'react-dom';
 import Link from 'next/link';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Gift } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Field, FormError, SubmitButton } from '@/components/ui/form';
 import { loginAction, registerAction } from '@/lib/server/actions/auth';
@@ -81,6 +81,10 @@ export function RegisterForm({ locale }: { locale: Locale }) {
         </>
       }
     >
+      <div className="mb-4 flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+        <Gift className="mt-0.5 h-4 w-4 shrink-0" />
+        <span>{t.bonus}</span>
+      </div>
       <form action={formAction} className="space-y-4">
         <FormError message={state.error} />
         <Field label={t.name} htmlFor="name" error={state.fieldErrors?.name}>

@@ -29,6 +29,27 @@
       "when": 1789298056893,
       "tag": "0003_keen_energizer",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789304072459,
+      "tag": "0004_warm_stature",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789308277484,
+      "tag": "0005_old_nuke",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789393620695,
+      "tag": "0006_glamorous_xorn",
+      "breakpoints": true
     }
   ]
 }

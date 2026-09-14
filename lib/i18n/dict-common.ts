@@ -76,6 +76,7 @@ export const commonEn = {
       [LedgerType.Refund]: 'Refund',
       [LedgerType.Adjustment]: 'Adjustment',
       [LedgerType.Expiry]: 'Expiry',
+      [LedgerType.Campaign]: 'Campaign',
     },
     permissionType: {
       [PermissionType.Menu]: 'Menu',
@@ -83,6 +84,21 @@ export const commonEn = {
     },
     provider: PROVIDER_LABELS,
     protocol: PROTOCOL_LABELS,
+  },
+  checkout: {
+    title: 'Checkout',
+    subtitle: 'Complete your payment',
+    orderNo: 'Order No.',
+    package: 'Package',
+    amount: 'Amount',
+    credit: 'Credit',
+    pay: 'Pay now',
+    paying: 'Processing…',
+    cancel: 'Cancel',
+    success: 'Payment successful — redirecting…',
+    notFound: 'Order not found.',
+    sandboxNotice: 'Sandbox mode — no real charge. Click "Pay now" to simulate a successful payment.',
+    alreadyPaid: 'This order is already paid.',
   },
 };
 
@@ -144,6 +160,7 @@ export const commonZh = {
       [LedgerType.Refund]: '退款',
       [LedgerType.Adjustment]: '调整',
       [LedgerType.Expiry]: '过期',
+      [LedgerType.Campaign]: '营销奖励',
     },
     permissionType: {
       [PermissionType.Menu]: '菜单',
@@ -151,5 +168,20 @@ export const commonZh = {
     },
     provider: PROVIDER_LABELS,
     protocol: PROTOCOL_LABELS,
+  },
+  checkout: {
+    title: '收银台',
+    subtitle: '完成支付',
+    orderNo: '订单号',
+    package: '套餐',
+    amount: '金额',
+    credit: '到账额度',
+    pay: '立即支付',
+    paying: '处理中…',
+    cancel: '取消',
+    success: '支付成功，正在跳转…',
+    notFound: '订单不存在。',
+    sandboxNotice: '沙盒模式——不会真实扣款。点击「立即支付」模拟支付成功。',
+    alreadyPaid: '该订单已支付。',
   },
 } satisfies typeof commonEn;

@@ -29,6 +29,10 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   low_balance_cents: 1,
   maintenance_mode: false,
   currency: 'USD',
+  // 1 USD ≈ 7.20 RMB (Sept 2026). Admin adjusts to market + safety margin.
+  forex_rate_rmb_per_usd: 7.2,
+  // 3% buffer: effective rate = 7.20 * 0.97 = 6.984, over-estimating RMB cost in USD.
+  forex_buffer_percent: 3,
   upstream_providers: defaultUpstreamProviders(),
 };
 

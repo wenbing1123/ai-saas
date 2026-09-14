@@ -8,11 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { FormError } from '@/components/ui/form';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { updateSettingsAction } from '@/lib/server/actions/settings';
 import type { ActionResult } from '@/lib/validators';
 import type { PlatformSettings } from '@/lib/types';
 import { getDict, type Locale } from '@/lib/i18n';
-import { infraSurchargePer1m } from '@/lib/server/pricing';
+import { infraSurchargePer1m, effectiveForexDivisor } from '@/lib/server/pricing';
 import { PROVIDER_LABELS } from '@/lib/db/enums';
 
 const PROVIDER_LABELS_LIST = Object.values(PROVIDER_LABELS);
@@ -24,6 +25,7 @@ export function SettingsForm({ locale, settings }: { locale: Locale; settings: P
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<ActionResult>({ ok: false });
   const [form, setForm] = useState<PlatformSettings>(settings);
+  const [tab, setTab] = useState('pricing');
   const [upstream, setUpstream] = useState<Record<string, { api_key: string; base_url: string }>>(
     settings.upstream_providers ?? {},
   );
@@ -33,6 +35,9 @@ export function SettingsForm({ locale, settings }: { locale: Locale; settings: P
   const surcharge = infraSurchargePer1m(infraUsd, form.forecast_monthly_tokens_m);
   const exampleCost = 1;
   const exampleSell = (exampleCost + surcharge) * (1 + form.target_profit_percent / 100);
+  const effectiveDivisor = effectiveForexDivisor(form.forex_rate_rmb_per_usd, form.forex_buffer_percent);
+  // Example: ¥1/1M input cost converts to how much USD.
+  const exampleRmbToUsd = 1 / effectiveDivisor;
 
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -44,6 +49,8 @@ export function SettingsForm({ locale, settings }: { locale: Locale; settings: P
     fd.set('default_rpm', String(form.default_rpm));
     fd.set('default_concurrency', String(form.default_concurrency));
     fd.set('low_balance_cents', String(form.low_balance_cents));
+    fd.set('forex_rate_rmb_per_usd', String(form.forex_rate_rmb_per_usd));
+    fd.set('forex_buffer_percent', String(form.forex_buffer_percent));
     if (form.maintenance_mode) fd.set('maintenance_mode', 'on');
     for (const label of PROVIDER_LABELS_LIST) {
       fd.set(`upstream_${label}_api_key`, upstream[label]?.api_key ?? '');
@@ -65,139 +72,179 @@ export function SettingsForm({ locale, settings }: { locale: Locale; settings: P
         </div>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-semibold">{s.pricingFormula}</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label={s.infraCost} hint={s.infraCostHint}>
-            <Input type="number" min={0} step={1}
-              value={infraUsd}
-              onChange={(e) => setForm({ ...form, infra_cost_per_month_cents: Math.round(Number(e.target.value) * 100) })} />
-          </Field>
-          <Field label={s.forecastTokens} hint={s.forecastTokensHint}>
-            <Input type="number" min={1} step={1}
-              value={form.forecast_monthly_tokens_m}
-              onChange={(e) => setForm({ ...form, forecast_monthly_tokens_m: Number(e.target.value) })} />
-          </Field>
-          <Field label={s.targetProfit} hint={s.targetProfitHint}>
-            <Input type="number" min={0} max={100} step={1}
-              value={form.target_profit_percent}
-              onChange={(e) => setForm({ ...form, target_profit_percent: Number(e.target.value) })} />
-          </Field>
-          <Field label={s.minMarkup} hint={s.minMarkupHint}>
-            <Input type="number" min={0} max={100} step={1}
-              value={form.min_markup_percent}
-              onChange={(e) => setForm({ ...form, min_markup_percent: Number(e.target.value) })} />
-          </Field>
-        </CardContent>
-        <CardContent className="border-t pt-4">
-          <p className="text-xs text-muted-foreground">
-            {s.formula}: ({s.exampleCostLabel} $1 + {s.infraShare} {surcharge > 0 ? `$${surcharge.toFixed(4)}` : '$0'}) × (1 + {form.target_profit_percent}%) = <span className="font-mono text-foreground">${exampleSell.toFixed(4)}</span> / 1M
-          </p>
-        </CardContent>
-      </Card>
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList>
+          <TabsTrigger value="pricing">{s.tabPricing}</TabsTrigger>
+          <TabsTrigger value="guardrails">{s.tabGuardrails}</TabsTrigger>
+          <TabsTrigger value="operations">{s.tabOperations}</TabsTrigger>
+          <TabsTrigger value="upstream">{s.tabUpstream}</TabsTrigger>
+        </TabsList>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-semibold">{s.costGuardrails}</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label={s.lowBalanceThreshold} hint={s.lowBalanceHint}>
-            <Input type="number" min={1} step={10}
-              value={form.low_balance_cents}
-              onChange={(e) => setForm({ ...form, low_balance_cents: Number(e.target.value) })} />
-          </Field>
-        </CardContent>
-      </Card>
+        <TabsContent value="pricing">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold">{s.pricingFormula}</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Field label={s.infraCost} hint={s.infraCostHint}>
+                <Input type="number" min={0} step={1}
+                  value={infraUsd}
+                  onChange={(e) => setForm({ ...form, infra_cost_per_month_cents: Math.round(Number(e.target.value) * 100) })} />
+              </Field>
+              <Field label={s.forecastTokens} hint={s.forecastTokensHint}>
+                <Input type="number" min={1} step={1}
+                  value={form.forecast_monthly_tokens_m}
+                  onChange={(e) => setForm({ ...form, forecast_monthly_tokens_m: Number(e.target.value) })} />
+              </Field>
+              <Field label={s.targetProfit} hint={s.targetProfitHint}>
+                <Input type="number" min={0} max={100} step={1}
+                  value={form.target_profit_percent}
+                  onChange={(e) => setForm({ ...form, target_profit_percent: Number(e.target.value) })} />
+              </Field>
+              <Field label={s.minMarkup} hint={s.minMarkupHint}>
+                <Input type="number" min={0} max={100} step={1}
+                  value={form.min_markup_percent}
+                  onChange={(e) => setForm({ ...form, min_markup_percent: Number(e.target.value) })} />
+              </Field>
+            </CardContent>
+            <CardContent className="border-t pt-4">
+              <p className="text-xs text-muted-foreground">
+                {s.formula}: ({s.exampleCostLabel} $1 + {s.infraShare} {surcharge > 0 ? `$${surcharge.toFixed(4)}` : '$0'}) × (1 + {form.target_profit_percent}%) = <span className="font-mono text-foreground">${exampleSell.toFixed(4)}</span> / 1M
+              </p>
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-semibold">{s.defaultRateLimits}</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label={s.requestsPerMinute}>
-            <Input type="number" min={1}
-              value={form.default_rpm}
-              onChange={(e) => setForm({ ...form, default_rpm: Number(e.target.value) })} />
-          </Field>
-          <Field label={s.concurrentRequests}>
-            <Input type="number" min={1}
-              value={form.default_concurrency}
-              onChange={(e) => setForm({ ...form, default_concurrency: Number(e.target.value) })} />
-          </Field>
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold">{s.forexTitle}</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Field label={s.forexRate} hint={s.forexRateHint}>
+                <Input type="number" min={0} step={0.01}
+                  value={form.forex_rate_rmb_per_usd}
+                  onChange={(e) => setForm({ ...form, forex_rate_rmb_per_usd: Number(e.target.value) })} />
+              </Field>
+              <Field label={s.forexBuffer} hint={s.forexBufferHint}>
+                <Input type="number" min={0} max={50} step={0.5}
+                  value={form.forex_buffer_percent}
+                  onChange={(e) => setForm({ ...form, forex_buffer_percent: Number(e.target.value) })} />
+              </Field>
+            </CardContent>
+            <CardContent className="border-t pt-4">
+              <p className="text-xs text-muted-foreground">
+                {s.forexFormula}: 1 USD = {form.forex_rate_rmb_per_usd} RMB · {s.forexBufferShort} {form.forex_buffer_percent}% → {s.forexEffectiveDivisor} {effectiveDivisor.toFixed(4)} · ¥1/1M ≈ ${exampleRmbToUsd.toFixed(6)}
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-semibold">{s.operations}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <label className="flex items-start gap-3 text-sm">
-            <input
-              type="checkbox"
-              className="mt-0.5 h-4 w-4 rounded border-input"
-              checked={form.maintenance_mode}
-              onChange={(e) => setForm({ ...form, maintenance_mode: e.target.checked })}
-            />
-            <span>
-              <span className="flex items-center gap-2 font-medium">
-                {s.maintenanceMode}
-                {form.maintenance_mode && (
-                  <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
-                    <AlertTriangle className="h-3 w-3" /> {s.maintenanceWarn}
+        <TabsContent value="guardrails">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold">{s.costGuardrails}</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Field label={s.lowBalanceThreshold} hint={s.lowBalanceHint}>
+                <Input type="number" min={1} step={10}
+                  value={form.low_balance_cents}
+                  onChange={(e) => setForm({ ...form, low_balance_cents: Number(e.target.value) })} />
+              </Field>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold">{s.defaultRateLimits}</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Field label={s.requestsPerMinute}>
+                <Input type="number" min={1}
+                  value={form.default_rpm}
+                  onChange={(e) => setForm({ ...form, default_rpm: Number(e.target.value) })} />
+              </Field>
+              <Field label={s.concurrentRequests}>
+                <Input type="number" min={1}
+                  value={form.default_concurrency}
+                  onChange={(e) => setForm({ ...form, default_concurrency: Number(e.target.value) })} />
+              </Field>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="operations">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold">{s.operations}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <label className="flex items-start gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 rounded border-input"
+                  checked={form.maintenance_mode}
+                  onChange={(e) => setForm({ ...form, maintenance_mode: e.target.checked })}
+                />
+                <span>
+                  <span className="flex items-center gap-2 font-medium">
+                    {s.maintenanceMode}
+                    {form.maintenance_mode && (
+                      <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                        <AlertTriangle className="h-3 w-3" /> {s.maintenanceWarn}
+                      </span>
+                    )}
                   </span>
-                )}
-              </span>
-              <span className="text-muted-foreground">{s.maintenanceDesc}</span>
-            </span>
-          </label>
-        </CardContent>
-      </Card>
+                  <span className="text-muted-foreground">{s.maintenanceDesc}</span>
+                </span>
+              </label>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-semibold">{s.upstream}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="mb-4 text-xs text-muted-foreground">{s.upstreamHint}</p>
-          <div className="space-y-6">
-            {PROVIDER_LABELS_LIST.map((label) => {
-              const cfg = upstream[label] ?? { api_key: '', base_url: '' };
-              return (
-                <div key={label} className="grid gap-4 sm:grid-cols-2">
-                  <Field label={`${label.toUpperCase()} · ${s.upstreamApiKey}`} hint={s.upstreamApiKeyHint}>
-                    <Input
-                      type="password"
-                      autoComplete="off"
-                      value={cfg.api_key}
-                      onChange={(e) =>
-                        setUpstream((prev) => ({
-                          ...prev,
-                          [label]: { ...prev[label], api_key: e.target.value },
-                        }))
-                      }
-                    />
-                  </Field>
-                  <Field label={`${label.toUpperCase()} · ${s.upstreamBaseUrl}`} hint={s.upstreamBaseUrlHint}>
-                    <Input
-                      value={cfg.base_url}
-                      placeholder={`https://api.${label}.com/v1`}
-                      onChange={(e) =>
-                        setUpstream((prev) => ({
-                          ...prev,
-                          [label]: { ...prev[label], base_url: e.target.value },
-                        }))
-                      }
-                    />
-                  </Field>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+        <TabsContent value="upstream">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold">{s.upstream}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="mb-4 text-xs text-muted-foreground">{s.upstreamHint}</p>
+              <div className="space-y-6">
+                {PROVIDER_LABELS_LIST.map((label) => {
+                  const cfg = upstream[label] ?? { api_key: '', base_url: '' };
+                  return (
+                    <div key={label} className="grid gap-4 sm:grid-cols-2">
+                      <Field label={`${label.toUpperCase()} · ${s.upstreamApiKey}`} hint={s.upstreamApiKeyHint}>
+                        <Input
+                          type="password"
+                          autoComplete="off"
+                          value={cfg.api_key}
+                          onChange={(e) =>
+                            setUpstream((prev) => ({
+                              ...prev,
+                              [label]: { ...prev[label], api_key: e.target.value },
+                            }))
+                          }
+                        />
+                      </Field>
+                      <Field label={`${label.toUpperCase()} · ${s.upstreamBaseUrl}`} hint={s.upstreamBaseUrlHint}>
+                        <Input
+                          value={cfg.base_url}
+                          placeholder={`https://api.${label}.com/v1`}
+                          onChange={(e) =>
+                            setUpstream((prev) => ({
+                              ...prev,
+                              [label]: { ...prev[label], base_url: e.target.value },
+                            }))
+                          }
+                        />
+                      </Field>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       <Button type="submit" disabled={pending}>
         {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

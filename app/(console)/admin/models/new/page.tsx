@@ -26,6 +26,7 @@ export default async function NewModelPage() {
         mode="create"
         infraSurcharge={infraSurcharge}
         targetProfit={settings.target_profit_percent}
+        forexRate={settings.forex_rate_rmb_per_usd}
         action={createModelAction}
       />
     </>

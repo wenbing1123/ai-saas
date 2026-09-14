@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { ModelPriceTable } from './ModelPriceTable';
 import { HeroCarousel } from './HeroCarousel';
 import { MobileMenu } from '@/components/site/MobileMenu';
+import { SiteFooter } from '@/components/site/SiteFooter';
 import { PROVIDER_LABELS } from '@/lib/db/enums';
 import { formatUsd } from '@/lib/server/pricing';
 import type { Model, Plan, User } from '@/lib/types';
@@ -30,25 +31,31 @@ export function Landing({
   user,
   t,
   locale,
+  forexRate,
+  forexBuffer = 0,
 }: {
   models: Model[];
   plans: Plan[];
   user: User | null;
   t: MarketingDict;
   locale: Locale;
+  forexRate?: number;
+  forexBuffer?: number;
 }) {
   return (
+    <>
     <main className="flex flex-col">
       <Nav user={user} t={t} locale={locale} />
       <HeroCarousel hero={t.landing.hero} stats={t.landing.stats} />
       <ProviderStrip models={models} t={t} />
-      <ModelSection models={models} t={t} />
+      <ModelSection models={models} t={t} forexRate={forexRate} forexBuffer={forexBuffer} />
       <Features t={t} />
       <HowItWorks t={t} />
       <PackageSection plans={plans} user={user} t={t} />
       <Faq t={t} />
-      <Footer t={t} />
     </main>
+    <SiteFooter />
+    </>
   );
 }
 
@@ -135,7 +142,17 @@ function ProviderStrip({ models, t }: { models: Model[]; t: MarketingDict }) {
   );
 }
 
-function ModelSection({ models, t }: { models: Model[]; t: MarketingDict }) {
+function ModelSection({
+  models,
+  t,
+  forexRate,
+  forexBuffer = 0,
+}: {
+  models: Model[];
+  t: MarketingDict;
+  forexRate?: number;
+  forexBuffer?: number;
+}) {
   return (
     <section id="models" className="py-24">
       <div className="container">
@@ -144,7 +161,7 @@ function ModelSection({ models, t }: { models: Model[]; t: MarketingDict }) {
           <p className="mt-4 text-muted-foreground">{t.landing.modelSection.subtitle}</p>
         </div>
         <div className="mt-12">
-          <ModelPriceTable models={models} t={t} />
+          <ModelPriceTable models={models} t={t} forexRate={forexRate} forexBuffer={forexBuffer} />
         </div>
         <p className="mt-4 text-center text-sm text-muted-foreground">
           {t.landing.modelSection.footnote}{' '}
@@ -280,24 +297,5 @@ function Faq({ t }: { t: MarketingDict }) {
         </div>
       </div>
     </section>
-  );
-}
-
-function Footer({ t }: { t: MarketingDict }) {
-  return (
-    <footer className="border-t">
-      <div className="container flex flex-col items-center justify-between gap-4 py-10 md:flex-row">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Sparkles className="h-4 w-4" />
-          <span>{t.landing.footer.tagline}</span>
-        </div>
-        <div className="flex items-center gap-6 text-sm text-muted-foreground">
-          <Link href="/" className="hover:text-foreground">{t.header.home}</Link>
-          <Link href="/pricing" className="hover:text-foreground">{t.header.pricing}</Link>
-          <Link href="/docs" className="hover:text-foreground">{t.header.docs}</Link>
-          <Link href="/login" className="hover:text-foreground">{t.header.signIn}</Link>
-        </div>
-      </div>
-    </footer>
   );
 }

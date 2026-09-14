@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge';
-import { formatPricePerM, formatNumber } from '@/lib/server/pricing';
+import { formatPricePerM, formatNumber, convertToUsd } from '@/lib/server/pricing';
 import { getDict } from '@/lib/i18n';
 import { PROVIDER_LABELS } from '@/lib/db/enums';
 import type { Locale } from '@/lib/i18n/types';
@@ -10,12 +10,21 @@ export function ModelPriceTable({
   models,
   locale = 'en',
   t,
+  forexRate,
+  forexBuffer = 0,
 }: {
   models: Model[];
   locale?: Locale;
   t?: typeof marketingEn;
+  /** RMB-per-USD rate; when provided, RMB sell prices are converted to USD. */
+  forexRate?: number;
+  forexBuffer?: number;
 }) {
   const dict = t ?? getDict(locale).marketing;
+  // Customers are billed in USD, so the public table always shows USD.
+  // RMB sell prices are converted with the same buffered rate used at billing.
+  const toUsd = (m: Model, v: number) =>
+    forexRate ? convertToUsd(v, m.costCurrency, forexRate, forexBuffer) : v;
   return (
     <div className="overflow-x-auto rounded-xl border bg-card">
       <table className="w-full min-w-[640px] text-sm">
@@ -44,10 +53,10 @@ export function ModelPriceTable({
                 {m.contextWindow ? `${formatNumber(Math.round(m.contextWindow / 1000))}K` : '—'}
               </td>
               <td className="px-4 py-3 text-right tabular-nums">
-                {formatPricePerM(m.sellInputPer1m)}
+                {formatPricePerM(toUsd(m, m.sellInputPer1m))}
               </td>
               <td className="px-4 py-3 text-right tabular-nums">
-                {formatPricePerM(m.sellOutputPer1m)}
+                {formatPricePerM(toUsd(m, m.sellOutputPer1m))}
               </td>
             </tr>
           ))}

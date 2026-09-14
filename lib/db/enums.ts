@@ -35,11 +35,25 @@ export enum Provider {
   DeepSeek = 4,
   Azure = 5,
   Custom = 6,
+  /** Zhipu AI — GLM series (智谱). */
+  Zhipu = 7,
+  /** Moonshot AI — Kimi series (月之暗面). */
+  Moonshot = 8,
+  /** ByteDance — Doubao / Seed series (字节豆包). */
+  Doubao = 9,
+  /** Alibaba Cloud — Qwen series (阿里通义千问). */
+  Alibaba = 10,
 }
 
 export enum Protocol {
   OpenAI = 1,
   Anthropic = 2,
+}
+
+/** Procurement currency of a model's upstream cost & sell prices. */
+export enum Currency {
+  USD = 1,
+  RMB = 2,
 }
 
 export enum OrderStatus {
@@ -76,6 +90,13 @@ export enum LedgerType {
   Refund = 3,
   Adjustment = 4,
   Expiry = 5,
+  Campaign = 6,
+}
+
+/** Marketing campaign types — extend here when adding new activities. */
+export enum CampaignType {
+  Register = 1,
+  Invite = 2,
 }
 
 export enum DocLocale {
@@ -95,6 +116,10 @@ export const PROVIDER_LABELS: Record<Provider, string> = {
   [Provider.DeepSeek]: 'deepseek',
   [Provider.Azure]: 'azure',
   [Provider.Custom]: 'custom',
+  [Provider.Zhipu]: 'zhipu',
+  [Provider.Moonshot]: 'moonshot',
+  [Provider.Doubao]: 'doubao',
+  [Provider.Alibaba]: 'alibaba',
 };
 
 export const PROVIDER_CODES: Record<string, Provider> = Object.fromEntries(
@@ -109,6 +134,20 @@ export const PROTOCOL_LABELS: Record<Protocol, string> = {
 export const PROTOCOL_CODES: Record<string, Protocol> = Object.fromEntries(
   Object.entries(PROTOCOL_LABELS).map(([code, label]) => [label, Number(code) as Protocol]),
 ) as Record<string, Protocol>;
+
+export const CURRENCY_LABELS: Record<Currency, string> = {
+  [Currency.USD]: 'USD',
+  [Currency.RMB]: 'RMB',
+};
+
+export const CURRENCY_SYMBOLS: Record<Currency, string> = {
+  [Currency.USD]: '$',
+  [Currency.RMB]: '¥',
+};
+
+export const CURRENCY_CODES: Record<string, Currency> = Object.fromEntries(
+  Object.entries(CURRENCY_LABELS).map(([code, label]) => [label.toLowerCase(), Number(code) as Currency]),
+) as Record<string, Currency>;
 
 export const DOC_LOCALE_CODES = { en: DocLocale.En, zh: DocLocale.Zh } as const;
 export const DOC_LOCALE_LABELS: Record<DocLocale, 'en' | 'zh'> = {

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { PublicHeader } from '@/components/site/PublicChrome';
+import { SiteFooter } from '@/components/site/SiteFooter';
 import { cn } from '@/lib/utils';
 import type { DocPageRow } from '@/lib/db/schema';
 
@@ -40,6 +41,7 @@ export function DocsChrome({
 }) {
   const groups = groupByCategory(pages);
   return (
+    <>
     <main>
       <PublicHeader />
       <div className="container grid gap-10 py-10 lg:grid-cols-[230px_minmax(0,1fr)]">
@@ -109,5 +111,7 @@ export function DocsChrome({
         </article>
       </div>
     </main>
+    <SiteFooter />
+    </>
   );
 }

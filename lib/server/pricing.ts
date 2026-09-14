@@ -7,7 +7,11 @@
  * 2. Service layer enforces sell >= cost * (1 + minMarkup%) as a business guardrail.
  * 3. Balance is debited with CEIL to the cent, so fractional-cent rounding never
  *    turns a profitable request into a loss.
+ * 4. RMB-priced models are converted to USD at billing time using a buffered
+ *    forex rate (rounded UP) so exchange-rate swings never create a loss.
  */
+
+import { Currency } from '@/lib/db/enums';
 
 export interface TokenUsage {
   inputTokens: number;
@@ -79,6 +83,51 @@ export function retailSetOf(input: {
   retailOutputPer1m: number | string;
 }): Pick<PriceSet, 'input' | 'output'> {
   return { input: Number(input.retailInputPer1m), output: Number(input.retailOutputPer1m) };
+}
+
+// ---------------------------------------------------------------------------
+// Forex — convert native-currency prices to USD (the billing currency)
+// ---------------------------------------------------------------------------
+
+/**
+ * Effective RMB-per-USD divisor, reduced by the safety buffer.
+ * A smaller divisor → larger USD amount → cost is over-estimated, which is
+ * the safe direction (we never under-charge relative to our RMB cost).
+ */
+export function effectiveForexDivisor(rateRmbPerUsd: number, bufferPercent: number): number {
+  const r = rateRmbPerUsd > 0 ? rateRmbPerUsd : 1;
+  const b = bufferPercent > 0 ? bufferPercent / 100 : 0;
+  return r * (1 - b);
+}
+
+/**
+ * Convert a native-currency per-1M price to USD.
+ * - USD: identity.
+ * - RMB: amount / (rate * (1 - buffer)), rounded UP to 6 dp.
+ *
+ * Rounding up on conversion guarantees the USD figure is never below the
+ * true converted value, protecting the margin against rounding loss.
+ */
+export function convertToUsd(amount: number, currency: Currency, rateRmbPerUsd: number, bufferPercent: number): number {
+  if (currency === Currency.USD || amount === 0) return amount;
+  const divisor = effectiveForexDivisor(rateRmbPerUsd, bufferPercent);
+  return Math.ceil((amount / divisor) * 1e6) / 1e6;
+}
+
+/** Convert a full native-currency PriceSet to USD. */
+export function toUsdPriceSet(
+  set: PriceSet,
+  currency: Currency,
+  rateRmbPerUsd: number,
+  bufferPercent: number,
+): PriceSet {
+  if (currency === Currency.USD) return set;
+  return {
+    input: convertToUsd(set.input, currency, rateRmbPerUsd, bufferPercent),
+    output: convertToUsd(set.output, currency, rateRmbPerUsd, bufferPercent),
+    cacheRead: convertToUsd(set.cacheRead, currency, rateRmbPerUsd, bufferPercent),
+    cacheWrite: convertToUsd(set.cacheWrite, currency, rateRmbPerUsd, bufferPercent),
+  };
 }
 
 /** Round up to 6 decimal places (1M-token price precision). */
@@ -215,6 +264,12 @@ export function formatUsdValue(usd: number, fractionDigits = 4): string {
 export function formatPricePerM(usd: number): string {
   if (usd === 0) return '—';
   return `$${usd.toFixed(usd < 0.01 ? 4 : 2)}`;
+}
+
+/** Format a per-1M price in an arbitrary native currency symbol ($ / ¥). */
+export function formatPricePerMIn(value: number, symbol: string): string {
+  if (value === 0) return '—';
+  return `${symbol}${value.toFixed(value < 0.01 ? 4 : 2)}`;
 }
 
 export function formatNumber(value: number): string {

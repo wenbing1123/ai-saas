@@ -15,7 +15,7 @@ import {
   emptyUsage,
   mergeUsage,
 } from './usage';
-import { costFor, costSetOf, sellSetOf, settleCharge } from '@/lib/server/pricing';
+import { costFor, costSetOf, sellSetOf, settleCharge, toUsdPriceSet } from '@/lib/server/pricing';
 import type { Model } from '@/lib/types';
 import {
   Protocol,
@@ -346,7 +346,13 @@ async function resolveCall(req: Request, protocol: Protocol): Promise<
     };
   }
   const estInputTokens = estimatePromptTokens(body);
-  const estCostUsd = costFor({ inputTokens: estInputTokens, outputTokens: 0 }, sellSetOf(model));
+  const sellUsd = toUsdPriceSet(
+    sellSetOf(model),
+    model.costCurrency,
+    settings.forex_rate_rmb_per_usd,
+    settings.forex_buffer_percent,
+  );
+  const estCostUsd = costFor({ inputTokens: estInputTokens, outputTokens: 0 }, sellUsd);
   if (estCostUsd > balanceUsd) {
     return {
       ok: false,
@@ -395,8 +401,11 @@ async function settle(
   errorMessage: string | null,
 ) {
   const { model } = call;
-  const costUsd = costFor(usage, costSetOf(model));
-  const chargeUsd = costFor(usage, sellSetOf(model));
+  const settings = await getSettings();
+  const rate = settings.forex_rate_rmb_per_usd;
+  const buffer = settings.forex_buffer_percent;
+  const costUsd = costFor(usage, toUsdPriceSet(costSetOf(model), model.costCurrency, rate, buffer));
+  const chargeUsd = costFor(usage, toUsdPriceSet(sellSetOf(model), model.costCurrency, rate, buffer));
   const money = settleCharge(costUsd, chargeUsd);
 
   await settleUsage({

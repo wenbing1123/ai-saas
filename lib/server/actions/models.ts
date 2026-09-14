@@ -66,6 +66,7 @@ function buildWriteInput(data: z.infer<typeof modelFormSchema>, infraSurcharge: 
     supportsVision: data.supportsVision,
     supportsTools: data.supportsTools,
     supportsReasoning: data.supportsReasoning,
+    costCurrency: data.costCurrency,
     inputCostPer1m: toPrice(data.inputCostPer1m),
     outputCostPer1m: toPrice(data.outputCostPer1m),
     cacheReadCostPer1m: toPrice(data.cacheReadCostPer1m),
@@ -90,10 +91,15 @@ export async function createModelAction(_prev: ActionResult, formData: FormData)
   const settings = await getSettings();
   // Amortized infra cost per 1M tokens — the guaranteed-profit floor is
   // (model cost + infra) × (1 + target profit %).
-  const surcharge = infraSurchargePer1m(
+  const usdSurcharge = infraSurchargePer1m(
     settings.infra_cost_per_month_cents / 100,
     settings.forecast_monthly_tokens_m,
   );
+  // Express the infra surcharge in the model's native pricing currency.
+  // RMB uses the full (unbuffered) rate so the billing-side buffer still over-covers.
+  const surcharge = parsed.data.costCurrency === 'rmb'
+    ? usdSurcharge * settings.forex_rate_rmb_per_usd
+    : usdSurcharge;
   const input = buildWriteInput(parsed.data, surcharge);
 
   const violations = validatePricing(
@@ -134,10 +140,13 @@ export async function updateModelAction(
   if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsFromZod(parsed.error) };
 
   const settings = await getSettings();
-  const surcharge = infraSurchargePer1m(
+  const usdSurcharge = infraSurchargePer1m(
     settings.infra_cost_per_month_cents / 100,
     settings.forecast_monthly_tokens_m,
   );
+  const surcharge = parsed.data.costCurrency === 'rmb'
+    ? usdSurcharge * settings.forex_rate_rmb_per_usd
+    : usdSurcharge;
   const input = buildWriteInput(parsed.data, surcharge);
   if (input.modelId !== existing.modelId) {
     const conflict = await getModelByPublicId(input.modelId);

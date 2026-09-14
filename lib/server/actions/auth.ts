@@ -7,7 +7,8 @@ import type { ActionResult } from '@/lib/validators';
 import { createUser, findAuthUserByEmail, changeUserPassword, getUserById } from '@/lib/repositories/users';
 import { verifyPassword } from '@/lib/server/crypto';
 import { startSession, destroySession, requireUser } from '@/lib/server/auth';
-import { UserStatus } from '@/lib/db/enums';
+import { UserStatus, CampaignType } from '@/lib/db/enums';
+import { claimCampaign } from '@/lib/server/campaign-service';
 
 export async function registerAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const parsed = registerSchema.safeParse(Object.fromEntries(formData));
@@ -20,6 +21,8 @@ export async function registerAction(_prev: ActionResult, formData: FormData): P
   }
 
   const user = await createUser(parsed.data);
+  // Best-effort sign-up bonus — failure must not block registration.
+  await claimCampaign(CampaignType.Register, user.id, { source: 'register' }).catch(() => null);
   await startSession(user.id);
   redirect('/dashboard');
 }

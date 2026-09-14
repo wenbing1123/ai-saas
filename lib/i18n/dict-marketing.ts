@@ -141,6 +141,10 @@ export const marketingEn = {
     },
     footer: {
       tagline: 'Nebula API — wholesale AI tokens, developer-grade gateway',
+      product: 'Product',
+      resources: 'Resources',
+      friends: 'Friends',
+      copyright: '© {year} Nebula API. All rights reserved.',
     },
   },
   pricingTable: {
@@ -239,6 +243,7 @@ export const marketingEn = {
     alreadyHave: 'Already have an account?',
     signIn: 'Sign in',
     terms: 'By creating an account you agree to use the service in compliance with your local AI usage regulations.',
+    bonus: 'Sign up now and get $6 free credit to try any model.',
   },
 };
 
@@ -378,6 +383,10 @@ export const marketingZh = {
     },
     footer: {
       tagline: 'Nebula API — 批发价 AI Token，开发者级网关',
+      product: '产品',
+      resources: '资源',
+      friends: '友情链接',
+      copyright: '© {year} Nebula API. 保留所有权利。',
     },
   },
   pricingTable: {
@@ -474,5 +483,6 @@ export const marketingZh = {
     alreadyHave: '已有账号？',
     signIn: '登录',
     terms: '创建账号即表示你同意遵守当地 AI 使用法规，合规使用本服务。',
+    bonus: '注册即送 $6 体验金，可调用任意模型。',
   },
 } satisfies typeof marketingEn;

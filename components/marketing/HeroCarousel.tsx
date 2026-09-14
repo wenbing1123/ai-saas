@@ -27,7 +27,13 @@ export function HeroCarousel({ hero, stats }: { hero: HeroDict; stats: StatsDict
 
   useEffect(() => {
     if (paused || count <= 1) return;
-    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let reduceMotion = false;
+    try {
+      reduceMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    } catch {
+      reduceMotion = false;
+    }
+    if (reduceMotion) return;
     const id = window.setInterval(() => setIndex((i) => (i + 1) % count), AUTOPLAY_MS);
     return () => window.clearInterval(id);
   }, [paused, count]);

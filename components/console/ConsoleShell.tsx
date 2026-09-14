@@ -12,10 +12,12 @@ import {
   ShieldCheck,
   Cpu,
   Package,
+  Receipt,
   Users,
   SlidersHorizontal,
   ShieldHalf,
   BookOpen,
+  Gift,
   LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -48,10 +50,12 @@ const ADMIN_NAV: Array<NavItem<keyof Dictionary['console']['shell']['adminNav']>
   { href: '/admin', labelKey: 'overview', icon: ShieldCheck, permission: 'admin:view' },
   { href: '/admin/models', labelKey: 'models', icon: Cpu, permission: 'model:view' },
   { href: '/admin/plans', labelKey: 'plans', icon: Package, permission: 'plan:view' },
+  { href: '/admin/orders', labelKey: 'orders', icon: Receipt, permission: 'order:view_all' },
   { href: '/admin/users', labelKey: 'users', icon: Users, permission: 'user:view' },
   { href: '/admin/roles', labelKey: 'roles', icon: ShieldHalf, permission: 'role:view' },
   { href: '/admin/docs', labelKey: 'docs', icon: BookOpen, permission: 'doc:manage' },
   { href: '/admin/usage', labelKey: 'usage', icon: BarChart3, permission: 'usage:view_all' },
+  { href: '/admin/campaigns', labelKey: 'campaigns', icon: Gift, permission: 'admin:view' },
   { href: '/admin/settings', labelKey: 'settings', icon: SlidersHorizontal, permission: 'setting:view' },
 ];
 

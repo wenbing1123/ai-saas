@@ -3,6 +3,8 @@
 export const appConfig = {
   name: 'Nebula API',
   tagline: 'Wholesale AI tokens for coding agents',
+  /** Public origin of the web app (console, login, marketing pages). */
+  appUrl: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
   /** Public origin customers point their SDKs at (the gateway). */
   gatewayUrl:
     process.env.NEXT_PUBLIC_GATEWAY_URL ??

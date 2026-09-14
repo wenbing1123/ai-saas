@@ -31,6 +31,7 @@ export default async function EditModelPage({ params }: { params: { id: string }
         model={model}
         infraSurcharge={infraSurcharge}
         targetProfit={settings.target_profit_percent}
+        forexRate={settings.forex_rate_rmb_per_usd}
         action={updateModelAction.bind(null, model.id)}
       />
     </>

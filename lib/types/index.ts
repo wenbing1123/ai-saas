@@ -6,6 +6,7 @@ import {
   PermissionType,
   Provider,
   Protocol,
+  Currency,
   OrderStatus,
   PaymentChannel,
   SubscriptionStatus,
@@ -21,6 +22,7 @@ export {
   PermissionType,
   Provider,
   Protocol,
+  Currency,
   OrderStatus,
   PaymentChannel,
   SubscriptionStatus,
@@ -89,6 +91,8 @@ export interface Model {
   supportsVision: boolean;
   supportsTools: boolean;
   supportsReasoning: boolean;
+  /** Procurement currency of cost & sell prices (USD or RMB). */
+  costCurrency: Currency;
   inputCostPer1m: number;
   outputCostPer1m: number;
   cacheReadCostPer1m: number;
@@ -130,6 +134,8 @@ export interface Order {
   orderNo: string;
   userId: string;
   planId: string;
+  /** Set when joined with biz_plan (list queries, checkout payload). */
+  planName?: string;
   amountCents: number;
   creditCents: number;
   currency: string;
@@ -140,6 +146,8 @@ export interface Order {
   periodEnd: Date | null;
   createdAt: Date;
   paidAt: Date | null;
+  refundedAt: Date | null;
+  refundedAmountCents: number;
 }
 
 export interface Subscription {
@@ -220,6 +228,19 @@ export interface PlatformSettings {
   low_balance_cents: number;
   maintenance_mode: boolean;
   currency: string;
+  /**
+   * Exchange rate: how many RMB per 1 USD (e.g. 7.20). Used to convert
+   * RMB-priced models (DeepSeek / Zhipu / Doubao / Alibaba) to USD for
+   * billing. A conservative value protects against RMB strengthening.
+   */
+  forex_rate_rmb_per_usd: number;
+  /**
+   * Safety buffer applied to the forex rate when converting RMB cost to USD.
+   * The effective divisor is rate * (1 - buffer/100), which over-estimates
+   * the USD cost so a rate swing up to `buffer`% never turns a profitable
+   * request into a loss.
+   */
+  forex_buffer_percent: number;
   /**
    * Dynamic upstream provider credentials, keyed by provider wire label
    * (openai / anthropic / google / deepseek / azure / custom).

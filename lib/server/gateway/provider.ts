@@ -23,6 +23,10 @@ const DEFAULT_BASE_URL: Record<string, string> = {
   deepseek: 'https://api.deepseek.com/v1',
   azure: '',
   custom: '',
+  zhipu: 'https://open.bigmodel.cn/api/paas/v4',
+  moonshot: 'https://api.moonshot.cn/v1',
+  doubao: 'https://ark.cn-beijing.volces.com/api/v3',
+  alibaba: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
 };
 
 export async function resolveUpstream(provider: Provider, modelBaseUrl: string | null): Promise<UpstreamProvider> {
