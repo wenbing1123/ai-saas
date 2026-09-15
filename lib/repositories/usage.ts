@@ -163,3 +163,57 @@ export async function getUsageByModel(since: Date, userId?: string): Promise<Mod
     chargeCents: Number(r.charge_cents),
   }));
 }
+
+// ---------------------------------------------------------------------------
+// Analytics aggregate (for dashboard insights card)
+// ---------------------------------------------------------------------------
+
+export interface UsageAnalytics {
+  total: number;
+  successCount: number;
+  errorCount: number;
+  blockedCount: number;
+  errorRate: number;
+  successRate: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number;
+}
+
+export async function getUsageAnalytics(userId: string, since: Date): Promise<UsageAnalytics> {
+  const db = getDb();
+  const rows = await db.execute<{
+    total: number;
+    success_count: number;
+    error_count: number;
+    blocked_count: number;
+    avg_latency: string;
+    p95_latency: string;
+  }>(sql`
+    SELECT
+      count(*)::int AS total,
+      count(*) FILTER (WHERE status = 1)::int AS success_count,
+      count(*) FILTER (WHERE status = 2)::int AS error_count,
+      count(*) FILTER (WHERE status = 3)::int AS blocked_count,
+      coalesce(avg(latency_ms), 0)::float AS avg_latency,
+      coalesce(percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms), 0)::float AS p95_latency
+    FROM bill_usage_record
+    WHERE deleted = 0
+      AND user_id = ${userId}::uuid
+      AND created_at >= ${since.toISOString()}::timestamptz
+  `);
+  const r = rows[0] ?? {};
+  const total = Number(r.total ?? 0);
+  const successCount = Number(r.success_count ?? 0);
+  const errorCount = Number(r.error_count ?? 0);
+  const blockedCount = Number(r.blocked_count ?? 0);
+  return {
+    total,
+    successCount,
+    errorCount,
+    blockedCount,
+    errorRate: total > 0 ? (errorCount / total) * 100 : 0,
+    successRate: total > 0 ? (successCount / total) * 100 : 0,
+    avgLatencyMs: Number(r.avg_latency ?? 0),
+    p95LatencyMs: Number(r.p95_latency ?? 0),
+  };
+}

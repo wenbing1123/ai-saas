@@ -28,6 +28,9 @@ export function getDb() {
   return globalThis.db!;
 }
 
+/** Callback argument type of db.transaction — repository helpers take this to enlist in an outer tx. */
+export type DbTx = Parameters<Parameters<ReturnType<typeof getDb>['transaction']>[0]>[0];
+
 export function getPgClient() {
   if (!globalThis.pgClient) {
     globalThis.pgClient = createClient();

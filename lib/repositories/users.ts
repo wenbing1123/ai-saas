@@ -2,7 +2,8 @@ import { and, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
 import { users, creditLedger, subscriptions, plans, roles, userRoles } from '@/lib/db/schema';
 import { mapUser, mapSubscription } from './mappers';
-import { assignUserRoles, getRoleCodesByUser } from './rbac';
+import { getRoleCodesByUser } from './rbac';
+import { resolveInviterTx, generateUniqueInviteCode, InviteCodeInvalidError } from './invites';
 import type { User, Subscription } from '@/lib/types';
 import { UserStatus, RoleStatus, LedgerType } from '@/lib/db/enums';
 import { hashPassword } from '@/lib/server/crypto';
@@ -34,26 +35,61 @@ function inUserId(ids: string[]) {
   )})`;
 }
 
+/**
+ * Create a self-registered account. The account starts unverified — callers
+ * send the activation email afterwards. When an invite code is supplied it is
+ * redeemed atomically in the same transaction, so user creation and the use
+ * count can never diverge.
+ */
 export async function createUser(input: {
   email: string;
   password: string;
   name: string;
-  roleCodes?: string[];
+  inviteCode?: string | null;
+  emailVerifiedAt?: Date | null;
 }): Promise<User> {
   const db = getDb();
+  return db.transaction(async (tx) => {
+    let invitedById: string | null = null;
+    if (input.inviteCode) {
+      invitedById = await resolveInviterTx(tx, input.inviteCode);
+      if (!invitedById) throw new InviteCodeInvalidError();
+    }
+    const inviteCode = await generateUniqueInviteCode();
+    const rows = await tx
+      .insert(users)
+      .values({
+        email: input.email.toLowerCase().trim(),
+        passwordHash: hashPassword(input.password),
+        name: input.name.trim(),
+        invitedById,
+        inviteCode,
+        emailVerifiedAt: input.emailVerifiedAt ?? null,
+      })
+      .returning();
+    const userRow = rows[0];
+    // Every self-registered account gets the regular user role.
+    const userRoleRows = await tx
+      .select({ id: roles.id })
+      .from(roles)
+      .where(and(eq(roles.code, 'user'), eq(roles.deleted, 0)))
+      .limit(1);
+    if (userRoleRows[0]) {
+      await tx.insert(userRoles).values({ userId: userRow.id, roleId: userRoleRows[0].id });
+    }
+    return mapUser(userRow, ['user']);
+  });
+}
+
+/** Stamp email_verified_at on first activation; COALESCE keeps the original time on replays. */
+export async function markEmailVerified(id: string): Promise<Date | null> {
+  const db = getDb();
   const rows = await db
-    .insert(users)
-    .values({
-      email: input.email.toLowerCase().trim(),
-      passwordHash: hashPassword(input.password),
-      name: input.name.trim(),
-    })
-    .returning();
-  const userRow = rows[0];
-  // Every account gets the regular user role; callers may grant more.
-  await assignUserRoles(userRow.id, input.roleCodes ?? ['user']);
-  const roleCodes = await getRoleCodesByUser(userRow.id);
-  return mapUser(userRow, roleCodes);
+    .update(users)
+    .set({ emailVerifiedAt: sql`COALESCE(email_verified_at, now())`, updatedAt: new Date() })
+    .where(and(eq(users.id, id), eq(users.deleted, 0)))
+    .returning({ emailVerifiedAt: users.emailVerifiedAt });
+  return rows[0]?.emailVerifiedAt ?? null;
 }
 
 /** Includes password hash — authentication only. */

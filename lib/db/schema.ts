@@ -32,6 +32,7 @@ import {
   CampaignType,
   DocLocale,
   Currency,
+  EmailTokenPurpose,
 } from './enums';
 
 /**
@@ -84,6 +85,15 @@ export const users = pgTable(
     name: varchar('name', { length: 100 }).notNull(),
     /** UserStatus enum: 1 = active, 2 = suspended */
     status: smallint('status').notNull().default(UserStatus.Active).$type<UserStatus>(),
+    /**
+     * Null until the activation link is clicked. Login / console access is
+     * rejected while this is null (status Suspended is a separate admin action).
+     */
+    emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
+    /** Invite code that admitted this user (its creator = the inviter). */
+    invitedById: uuid('invited_by_id'),
+    /** Unique 6-char invite code (a-zA-Z0-9) every user gets to share. */
+    inviteCode: varchar('invite_code', { length: 6 }).notNull(),
     /** Pre-paid credit balance in whole cents. */
     balanceCents: bigint('balance_cents', { mode: 'bigint' }).notNull().default(sql`0`),
     currency: varchar('currency', { length: 3 }).notNull().default('USD'),
@@ -93,7 +103,9 @@ export const users = pgTable(
   (t) => ({
     // Only live rows participate in uniqueness — a soft-deleted email can be re-registered.
     emailUnique: uniqueIndex('sys_user_email_unique').on(t.email).where(sql`${t.deleted} = 0`),
+    inviteCodeUnique: uniqueIndex('sys_user_invite_code_unique').on(t.inviteCode).where(sql`${t.deleted} = 0`),
     statusIdx: index('sys_user_status_idx').on(t.status),
+    invitedByIdx: index('sys_user_invited_by_idx').on(t.invitedById),
     statusCheck: check('sys_user_status_check', sql`${t.status} IN (1, 2)`),
   }),
 );
@@ -213,6 +225,31 @@ export const translations = pgTable(
       .where(sql`${t.deleted} = 0`),
     entityIdx: index('sys_i18n_tr_entity_idx').on(t.entityType, t.entityId),
     localeCheck: check('sys_i18n_tr_locale_check', sql`${t.locale} IN (1, 2)`),
+  }),
+);
+
+/**
+ * Single-use email tokens (activation links, password-reset links).
+ * Only the SHA-256 hash is stored; the raw secret lives in the emailed link.
+ * Each purpose row is consumed at most once and expires quickly.
+ */
+export const emailTokens = pgTable(
+  'sys_email_token',
+  {
+    ...baseColumns,
+    userId: uuid('user_id')
+      .notNull()
+      .references((): AnyPgColumn => users.id, { onDelete: 'cascade' }),
+    /** EmailTokenPurpose enum: 1 = activate, 2 = password reset. */
+    purpose: smallint('purpose').notNull().$type<EmailTokenPurpose>(),
+    tokenHash: varchar('token_hash', { length: 64 }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (t) => ({
+    tokenHashUnique: uniqueIndex('sys_email_token_hash_unique').on(t.tokenHash).where(sql`${t.deleted} = 0`),
+    userPurposeIdx: index('sys_email_token_user_purpose_idx').on(t.userId, t.purpose),
+    purposeCheck: check('sys_email_token_purpose_check', sql`${t.purpose} IN (1, 2)`),
   }),
 );
 
@@ -576,3 +613,4 @@ export type DocPageRow = typeof docPages.$inferSelect;
 export type NewDocPageRow = typeof docPages.$inferInsert;
 export type CampaignRow = typeof campaigns.$inferSelect;
 export type NewCampaignRow = typeof campaigns.$inferInsert;
+export type EmailTokenRow = typeof emailTokens.$inferSelect;

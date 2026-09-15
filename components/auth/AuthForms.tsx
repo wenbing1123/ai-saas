@@ -12,7 +12,7 @@ import type { ActionResult } from '@/lib/validators';
 
 const initial: ActionResult = { ok: false };
 
-function Shell({ title, subtitle, children, footer }: { title: string; subtitle: string; children: React.ReactNode; footer: React.ReactNode }) {
+export function Shell({ title, subtitle, children, footer }: { title: string; subtitle: string; children: React.ReactNode; footer: React.ReactNode }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
       <div className="w-full max-w-md">
@@ -53,12 +53,25 @@ export function LoginForm({ locale }: { locale: Locale }) {
     >
       <form action={formAction} className="space-y-4">
         <FormError message={state.error} />
+        {state.error === t.unverified && (
+          <Link
+            href="/register/verify"
+            className="-mt-2 block text-right text-xs font-medium underline underline-offset-4"
+          >
+            {getDict(locale).marketing.accountEmail.verify.resend}
+          </Link>
+        )}
         <Field label={t.email} htmlFor="email" error={state.fieldErrors?.email}>
           <Input id="email" name="email" type="email" placeholder="you@company.com" autoComplete="email" required />
         </Field>
         <Field label={t.password} htmlFor="password" error={state.fieldErrors?.password}>
           <Input id="password" name="password" type="password" placeholder="••••••••" autoComplete="current-password" required />
         </Field>
+        <div className="flex justify-end">
+          <Link href="/forgot-password" className="text-xs font-medium underline underline-offset-4">
+            {t.forgotPassword}
+          </Link>
+        </div>
         <SubmitButton className="w-full">{t.submit}</SubmitButton>
       </form>
     </Shell>
@@ -100,6 +113,20 @@ export function RegisterForm({ locale }: { locale: Locale }) {
           error={state.fieldErrors?.password}
         >
           <Input id="password" name="password" type="password" placeholder="••••••••" autoComplete="new-password" required minLength={8} />
+        </Field>
+        <Field
+          label={t.inviteCode}
+          htmlFor="inviteCode"
+          hint={t.inviteCodeHint}
+          error={state.fieldErrors?.inviteCode}
+        >
+          <Input
+            id="inviteCode"
+            name="inviteCode"
+            placeholder="e.g. aB3x9Z"
+            autoComplete="off"
+            className="font-mono tracking-wider"
+          />
         </Field>
         <SubmitButton className="w-full">{t.submit}</SubmitButton>
         <p className="text-center text-xs text-muted-foreground">{t.terms}</p>

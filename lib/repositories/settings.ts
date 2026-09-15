@@ -28,6 +28,8 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   default_concurrency: 3,
   low_balance_cents: 1,
   maintenance_mode: false,
+  // Empty host → dev mode: activation/reset emails are logged to the server console.
+  smtp: { host: '', port: 587, secure: false, user: '', pass: '', from: '' },
   currency: 'USD',
   // 1 USD ≈ 7.20 RMB (Sept 2026). Admin adjusts to market + safety margin.
   forex_rate_rmb_per_usd: 7.2,

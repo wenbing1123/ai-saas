@@ -29,6 +29,8 @@ export function SettingsForm({ locale, settings }: { locale: Locale; settings: P
   const [upstream, setUpstream] = useState<Record<string, { api_key: string; base_url: string }>>(
     settings.upstream_providers ?? {},
   );
+  // SMTP password is never prefilled — a blank field keeps the stored secret.
+  const [smtp, setSmtp] = useState({ ...settings.smtp, pass: '' });
 
   // Infra cost is edited in USD and persisted in cents.
   const infraUsd = form.infra_cost_per_month_cents / 100;
@@ -52,6 +54,12 @@ export function SettingsForm({ locale, settings }: { locale: Locale; settings: P
     fd.set('forex_rate_rmb_per_usd', String(form.forex_rate_rmb_per_usd));
     fd.set('forex_buffer_percent', String(form.forex_buffer_percent));
     if (form.maintenance_mode) fd.set('maintenance_mode', 'on');
+    fd.set('smtp_host', smtp.host);
+    fd.set('smtp_port', String(smtp.port));
+    if (smtp.secure) fd.set('smtp_secure', 'on');
+    fd.set('smtp_user', smtp.user);
+    fd.set('smtp_pass', smtp.pass);
+    fd.set('smtp_from', smtp.from);
     for (const label of PROVIDER_LABELS_LIST) {
       fd.set(`upstream_${label}_api_key`, upstream[label]?.api_key ?? '');
       fd.set(`upstream_${label}_base_url`, upstream[label]?.base_url ?? '');
@@ -196,6 +204,68 @@ export function SettingsForm({ locale, settings }: { locale: Locale; settings: P
                   <span className="text-muted-foreground">{s.maintenanceDesc}</span>
                 </span>
               </label>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold">{s.smtpTitle}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="mb-4 text-xs text-muted-foreground">{s.smtpHint}</p>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <Field label={s.smtpHost}>
+                  <Input
+                    value={smtp.host}
+                    placeholder="smtp.example.com"
+                    autoComplete="off"
+                    onChange={(e) => setSmtp({ ...smtp, host: e.target.value })}
+                  />
+                </Field>
+                <Field label={s.smtpPort}>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={65535}
+                    value={smtp.port}
+                    onChange={(e) => setSmtp({ ...smtp, port: Number(e.target.value) })}
+                  />
+                </Field>
+                <div className="flex items-end pb-2">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-input"
+                      checked={smtp.secure}
+                      onChange={(e) => setSmtp({ ...smtp, secure: e.target.checked })}
+                    />
+                    {s.smtpSecure}
+                  </label>
+                </div>
+                <Field label={s.smtpUser}>
+                  <Input
+                    value={smtp.user}
+                    autoComplete="off"
+                    onChange={(e) => setSmtp({ ...smtp, user: e.target.value })}
+                  />
+                </Field>
+                <Field label={s.smtpPass} hint={s.smtpPassHint}>
+                  <Input
+                    type="password"
+                    value={smtp.pass}
+                    autoComplete="new-password"
+                    placeholder="••••••••"
+                    onChange={(e) => setSmtp({ ...smtp, pass: e.target.value })}
+                  />
+                </Field>
+                <Field label={s.smtpFrom}>
+                  <Input
+                    value={smtp.from}
+                    placeholder="Nebula API <no-reply@example.com>"
+                    onChange={(e) => setSmtp({ ...smtp, from: e.target.value })}
+                  />
+                </Field>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

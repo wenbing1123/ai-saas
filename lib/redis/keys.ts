@@ -14,13 +14,20 @@ const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 const TOKEN_TTL_SECONDS = 60; // api key → user/token lookup
 const MODEL_TTL_SECONDS = 300;
 const SETTINGS_TTL_SECONDS = 120;
+const EMAIL_COOLDOWN_SECONDS = 60; // min gap between two account emails to one address
+const EMAIL_HOURLY_SECONDS = 3600; // rolling hourly cap window
 
 export const redisTtl = {
   session: SESSION_TTL_SECONDS,
   token: TOKEN_TTL_SECONDS,
   model: MODEL_TTL_SECONDS,
   settings: SETTINGS_TTL_SECONDS,
+  emailCooldown: EMAIL_COOLDOWN_SECONDS,
+  emailHourly: EMAIL_HOURLY_SECONDS,
 } as const;
+
+/** Max activation/reset emails to one address per rolling hour. */
+export const EMAIL_HOURLY_LIMIT = 5;
 
 export const redisKeys = {
   /** Login sessions: session:{sid} */
@@ -41,4 +48,11 @@ export const redisKeys = {
   gatewayRpm: (tokenId: string) => `gw:rpm:${tokenId}`,
   /** In-flight concurrency guard per user. */
   gatewayConcurrency: (userId: string) => `gw:conc:${userId}`,
+  /** Priority concurrency pool (subscribed users — isolated from free tier). */
+  gatewayConcurrencyPriority: (userId: string) => `gw:conc:prio:${userId}`,
+
+  /** Per-address cooldown between account emails. */
+  emailCooldown: (email: string) => `email:cooldown:${email.toLowerCase()}`,
+  /** Rolling hourly counter per address. */
+  emailHourly: (email: string) => `email:hourly:${email.toLowerCase()}`,
 } as const;

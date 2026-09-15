@@ -38,11 +38,28 @@ export interface User {
   /** RBAC role codes, resolved through sys_user_role → sys_role. */
   roles: string[];
   status: UserStatus;
+  /** Null until the email activation link is clicked. */
+  emailVerifiedAt: Date | null;
+  /** User (admin/inviter) whose invite code admitted this account. */
+  invitedById: string | null;
+  /** Unique 6-char code this user can share to invite others. */
+  inviteCode: string;
   balanceCents: number;
   currency: string;
   packageExpireAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  /** Use implicit TLS (port 465). STARTTLS is negotiated automatically otherwise. */
+  secure: boolean;
+  user: string;
+  pass: string;
+  /** Envelope sender, e.g. "Nebula API <no-reply@example.com>". */
+  from: string;
 }
 
 export interface Role {
@@ -227,6 +244,8 @@ export interface PlatformSettings {
   default_concurrency: number;
   low_balance_cents: number;
   maintenance_mode: boolean;
+  /** SMTP transport for activation / password-reset mail. Empty host = dev log mode. */
+  smtp: SmtpConfig;
   currency: string;
   /**
    * Exchange rate: how many RMB per 1 USD (e.g. 7.20). Used to convert

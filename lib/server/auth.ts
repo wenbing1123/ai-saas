@@ -66,7 +66,8 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   }
 
   const user = await getUserById(payload.userId);
-  if (!user || user.status !== UserStatus.Active) {
+  // Email must be activated; Suspended accounts are rejected separately.
+  if (!user || user.status !== UserStatus.Active || !user.emailVerifiedAt) {
     await redis.del(prefixedKey(redisKeys.session(sid)));
     return null;
   }

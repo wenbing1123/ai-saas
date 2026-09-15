@@ -93,10 +93,12 @@ async function enforceRpm(tokenId: string, rpm: number): Promise<{ blocked: bool
   }
 }
 
-async function acquireConcurrency(userId: string, max: number): Promise<boolean> {
+async function acquireConcurrency(userId: string, max: number, priority = false): Promise<boolean> {
   try {
     const redis = getRedis();
-    const key = prefixedKey(redisKeys.gatewayConcurrency(userId));
+    const key = prefixedKey(
+      priority ? redisKeys.gatewayConcurrencyPriority(userId) : redisKeys.gatewayConcurrency(userId),
+    );
     const current = await withTimeout(redis.incr(key), 250);
     if (current === 1) await redis.expire(key, 120);
     if (current > max) {
@@ -109,10 +111,13 @@ async function acquireConcurrency(userId: string, max: number): Promise<boolean>
   }
 }
 
-async function releaseConcurrency(userId: string) {
+async function releaseConcurrency(userId: string, priority = false) {
   try {
     const redis = getRedis();
-    await withTimeout(redis.decr(prefixedKey(redisKeys.gatewayConcurrency(userId))), 250);
+    const key = prefixedKey(
+      priority ? redisKeys.gatewayConcurrencyPriority(userId) : redisKeys.gatewayConcurrency(userId),
+    );
+    await withTimeout(redis.decr(key), 250);
   } catch {
     /* best effort */
   }
@@ -262,6 +267,8 @@ interface ResolvedCall {
   model: Model;
   body: Record<string, unknown>;
   entitlement: { rateLimitRpm: number; maxConcurrency: number; allowedModelIds: string[] } | null;
+  /** Subscribed users get priority routing: longer upstream timeout + dedicated concurrency pool. */
+  hasPriority: boolean;
   requestId: string;
 }
 
@@ -370,7 +377,7 @@ async function resolveCall(req: Request, protocol: Protocol): Promise<
     };
   }
 
-  const concurrencyOk = await acquireConcurrency(auth.user.id, concurrency);
+  const concurrencyOk = await acquireConcurrency(auth.user.id, concurrency, !!entitlement);
   if (!concurrencyOk) {
     return {
       ok: false,
@@ -387,6 +394,7 @@ async function resolveCall(req: Request, protocol: Protocol): Promise<
       model,
       body,
       entitlement: entitlement ? { rateLimitRpm: rpm, maxConcurrency: concurrency, allowedModelIds: allowed } : null,
+      hasPriority: !!entitlement,
       requestId,
     },
   };
@@ -473,7 +481,7 @@ export async function handleChatCompletions(req: Request): Promise<Response> {
   const { model, body } = call;
   const upstream = await resolveUpstream(model.provider, model.baseUrl);
   if (!upstream.apiKey) {
-    await releaseConcurrency(call.userId);
+    await releaseConcurrency(call.userId, call.hasPriority);
     return gatewayError(Protocol.OpenAI, 503, 'api_error', `Upstream credentials for provider "${PROVIDER_LABELS[model.provider]}" are not configured.`, call.requestId);
   }
 
@@ -493,9 +501,10 @@ export async function handleChatCompletions(req: Request): Promise<Response> {
         authorization: `Bearer ${upstream.apiKey}`,
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(call.hasPriority ? 120_000 : 60_000),
     });
   } catch (err) {
-    await releaseConcurrency(call.userId);
+    await releaseConcurrency(call.userId, call.hasPriority);
     await settle(call, emptyUsage(), Date.now() - started, 502, false, err instanceof Error ? err.message : 'upstream fetch failed');
     return gatewayError(Protocol.OpenAI, 502, 'api_error', 'The upstream provider connection failed.', call.requestId);
   }
@@ -503,7 +512,7 @@ export async function handleChatCompletions(req: Request): Promise<Response> {
   if (!upstreamResp.ok || !upstreamResp.body) {
     const text = await upstreamResp.text().catch(() => '{}');
     await settle(call, emptyUsage(), Date.now() - started, upstreamResp.status, false, text.slice(0, 1000));
-    await releaseConcurrency(call.userId);
+    await releaseConcurrency(call.userId, call.hasPriority);
     return new Response(text, {
       status: upstreamResp.status,
       headers: { 'content-type': upstreamResp.headers.get('content-type') ?? 'application/json', 'x-request-id': call.requestId },
@@ -514,7 +523,7 @@ export async function handleChatCompletions(req: Request): Promise<Response> {
     const payload = (await upstreamResp.json()) as Record<string, unknown>;
     const usage = normalizeOpenAiUsage(payload.usage as Record<string, unknown> | undefined);
     await settle(call, usage, Date.now() - started, upstreamResp.status, true, null);
-    await releaseConcurrency(call.userId);
+    await releaseConcurrency(call.userId, call.hasPriority);
     return Response.json(payload, { headers: { 'x-request-id': call.requestId } });
   }
 
@@ -525,7 +534,7 @@ export async function handleChatCompletions(req: Request): Promise<Response> {
     async () => {
       const usage = collector.getUsage();
       await settle(call, usage, Date.now() - started, 200, true, null);
-      await releaseConcurrency(call.userId);
+      await releaseConcurrency(call.userId, call.hasPriority);
     },
   );
 
@@ -562,7 +571,7 @@ export async function handleMessages(req: Request): Promise<Response> {
   const { model, body } = call;
   const upstream = await resolveUpstream(model.provider, model.baseUrl);
   if (!upstream.apiKey) {
-    await releaseConcurrency(call.userId);
+    await releaseConcurrency(call.userId, call.hasPriority);
     return gatewayError(Protocol.Anthropic, 503, 'api_error', `Upstream credentials for provider "${PROVIDER_LABELS[model.provider]}" are not configured.`, call.requestId);
   }
 
@@ -583,9 +592,10 @@ export async function handleMessages(req: Request): Promise<Response> {
         ...(anthropicBeta ? { 'anthropic-beta': anthropicBeta } : {}),
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(call.hasPriority ? 120_000 : 60_000),
     });
   } catch (err) {
-    await releaseConcurrency(call.userId);
+    await releaseConcurrency(call.userId, call.hasPriority);
     await settle(call, emptyUsage(), Date.now() - started, 502, false, err instanceof Error ? err.message : 'upstream fetch failed');
     return gatewayError(Protocol.Anthropic, 502, 'api_error', 'The upstream provider connection failed.', call.requestId);
   }
@@ -593,7 +603,7 @@ export async function handleMessages(req: Request): Promise<Response> {
   if (!upstreamResp.ok || !upstreamResp.body) {
     const text = await upstreamResp.text().catch(() => '{}');
     await settle(call, emptyUsage(), Date.now() - started, upstreamResp.status, false, text.slice(0, 1000));
-    await releaseConcurrency(call.userId);
+    await releaseConcurrency(call.userId, call.hasPriority);
     return new Response(text, {
       status: upstreamResp.status,
       headers: { 'content-type': upstreamResp.headers.get('content-type') ?? 'application/json', 'x-request-id': call.requestId },
@@ -608,7 +618,7 @@ export async function handleMessages(req: Request): Promise<Response> {
       { usage: { output_tokens: u.output_tokens ?? 0 } },
     );
     await settle(call, usage, Date.now() - started, upstreamResp.status, true, null);
-    await releaseConcurrency(call.userId);
+    await releaseConcurrency(call.userId, call.hasPriority);
     return Response.json(payload, { headers: { 'x-request-id': call.requestId } });
   }
 
@@ -619,7 +629,7 @@ export async function handleMessages(req: Request): Promise<Response> {
     async () => {
       const usage = collector.getUsage();
       await settle(call, mergeUsage(usage, {}), Date.now() - started, 200, true, null);
-      await releaseConcurrency(call.userId);
+      await releaseConcurrency(call.userId, call.hasPriority);
     },
   );
 

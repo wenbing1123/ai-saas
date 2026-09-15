@@ -104,6 +104,14 @@ export enum DocLocale {
   Zh = 2,
 }
 
+/** Purpose of a single-use email token (sys_email_token). */
+export enum EmailTokenPurpose {
+  /** Account activation link sent after registration. */
+  Activate = 1,
+  /** Password reset link from the forgot-password flow. */
+  PasswordReset = 2,
+}
+
 // ---------------------------------------------------------------------------
 // Wire/UI label maps — numeric code at rest, stable string at system edges
 // (public API JSON, upstream provider keys, i18n-neutral technical labels).

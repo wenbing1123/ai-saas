@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { AlertTriangle, KeyRound, CreditCard, Activity, DollarSign, ArrowRight } from 'lucide-react';
+import { AlertTriangle, KeyRound, CreditCard, Activity, DollarSign, ArrowRight, UserPlus, Gauge, Zap, BarChart3 } from 'lucide-react';
 import { PageHeader, StatCard } from '@/components/console/StatCard';
 import { BarsChart } from '@/components/console/BarsChart';
 import { UsageTable } from '@/components/console/UsageTable';
@@ -9,7 +9,7 @@ import { requireUser } from '@/lib/server/auth';
 import { getLocale } from '@/lib/i18n/server';
 import { getDict } from '@/lib/i18n';
 import { getActiveEntitlement } from '@/lib/repositories/users';
-import { getUsageTotals, getDailyUsage, getUsageByModel, listUsage } from '@/lib/repositories/usage';
+import { getUsageTotals, getDailyUsage, getUsageByModel, listUsage, getUsageAnalytics } from '@/lib/repositories/usage';
 import { formatUsd, formatNumber } from '@/lib/server/pricing';
 import { formatDate } from '@/lib/utils';
 
@@ -23,13 +23,14 @@ export default async function DashboardOverview() {
   const user = await requireUser();
   const locale = getLocale();
   const t = getDict(locale).console;
-  const [entitlement, totals30, totalsToday, daily, topModels, recent] = await Promise.all([
+  const [entitlement, totals30, totalsToday, daily, topModels, recent, analytics] = await Promise.all([
     getActiveEntitlement(user.id),
     getUsageTotals({ userId: user.id, since: daysAgo(30) }),
     getUsageTotals({ userId: user.id, since: daysAgo(1) }),
     getDailyUsage(user.id, 14),
     getUsageByModel(daysAgo(30), user.id),
     listUsage({ userId: user.id, limit: 8 }),
+    getUsageAnalytics(user.id, daysAgo(30)),
   ]);
 
   return (
@@ -79,6 +80,55 @@ export default async function DashboardOverview() {
         />
       </div>
 
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        {/* Package capabilities */}
+        <Card>
+          <CardContent className="py-4">
+            <div className="mb-3 flex items-center gap-2">
+              <Gauge className="h-4 w-4 text-primary" />
+              <span className="text-sm font-semibold">{t.overview.packageTier}</span>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-lg border bg-muted/30 p-3 text-center">
+                <Zap className="mx-auto mb-1 h-4 w-4 text-amber-500" />
+                <div className="text-lg font-bold tabular-nums">
+                  {entitlement ? entitlement.rateLimitRpm : t.overview.defaultRpm}
+                </div>
+                <div className="text-xs text-muted-foreground">{t.overview.rpmLabel}</div>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-3 text-center">
+                <Activity className="mx-auto mb-1 h-4 w-4 text-blue-500" />
+                <div className="text-lg font-bold tabular-nums">
+                  {entitlement ? entitlement.maxConcurrency : t.overview.defaultConcurrency}
+                </div>
+                <div className="text-xs text-muted-foreground">{t.overview.concurrencyLabel}</div>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-3 text-center">
+                <BarChart3 className="mx-auto mb-1 h-4 w-4 text-emerald-500" />
+                <div className="text-sm font-bold">
+                  {entitlement ? t.overview.priorityOn : t.overview.priorityOff}
+                </div>
+                <div className="text-xs text-muted-foreground">{t.overview.priorityLabel}</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Invite code */}
+        <Card>
+          <CardContent className="flex items-center gap-4 py-4">
+            <UserPlus className="h-5 w-5 shrink-0 text-primary" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium">{t.overview.inviteCodeLabel}</p>
+              <p className="text-xs text-muted-foreground">{t.overview.inviteCodeHint}</p>
+            </div>
+            <code className="ml-auto rounded bg-muted px-3 py-1.5 font-mono text-sm font-semibold tracking-wider">
+              {user.inviteCode}
+            </code>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between">
@@ -113,6 +163,52 @@ export default async function DashboardOverview() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Usage analytics */}
+      {analytics.total > 0 && (
+        <Card className="mt-6">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-base">{t.overview.analyticsTitle}</CardTitle>
+            <span className="text-xs text-muted-foreground">{t.overview.analyticsRange}</span>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">{t.overview.successRate}</p>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-xl font-bold tabular-nums">{analytics.successRate.toFixed(1)}%</span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-emerald-500" style={{ width: `${analytics.successRate}%` }} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">{t.overview.errorRate}</p>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-xl font-bold tabular-nums">{analytics.errorRate.toFixed(1)}%</span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-red-500" style={{ width: `${analytics.errorRate}%` }} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">{t.overview.avgLatency}</p>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-xl font-bold tabular-nums">{(analytics.avgLatencyMs / 1000).toFixed(2)}</span>
+                  <span className="text-xs text-muted-foreground">s</span>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">{t.overview.p95Latency}</p>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-xl font-bold tabular-nums">{(analytics.p95LatencyMs / 1000).toFixed(2)}</span>
+                  <span className="text-xs text-muted-foreground">s</span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="mt-6">
         <CardHeader className="flex flex-row items-center justify-between">

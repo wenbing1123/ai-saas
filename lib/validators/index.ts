@@ -19,12 +19,29 @@ export const registerSchema = z.object({
   name: z.string().trim().min(2, 'Name must be at least 2 characters').max(100),
   email: z.string().trim().toLowerCase().email('Enter a valid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters').max(200),
+  // Optional — enter a friend's code to credit them as your inviter.
+  inviteCode: z.string().trim().max(6).optional().default(''),
 });
 
 export const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email('Enter a valid email address'),
   password: z.string().min(1, 'Password is required'),
 });
+
+export const emailOnlySchema = z.object({
+  email: z.string().trim().toLowerCase().email('Enter a valid email address'),
+});
+
+export const resetPasswordSchema = z
+  .object({
+    token: z.string().min(20, 'Invalid reset token').max(200),
+    newPassword: z.string().min(8, 'New password must be at least 8 characters').max(200),
+    confirmPassword: z.string().min(1),
+  })
+  .refine((v) => v.newPassword === v.confirmPassword, {
+    path: ['confirmPassword'],
+    message: 'Passwords do not match',
+  });
 
 export const tokenNameSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(100),
@@ -115,6 +132,13 @@ export const settingsFormSchema = z.object({
   maintenance_mode: z.coerce.boolean().default(false),
   forex_rate_rmb_per_usd: z.coerce.number().positive(),
   forex_buffer_percent: z.coerce.number().min(0).max(50),
+  // SMTP transport (运维 tab) — assembled into the `smtp` object by the action.
+  smtp_host: z.string().trim().max(255).optional().default(''),
+  smtp_port: z.coerce.number().int().positive().max(65535).default(587),
+  smtp_secure: z.coerce.boolean().default(false),
+  smtp_user: z.string().trim().max(255).optional().default(''),
+  smtp_pass: z.string().max(255).optional().default(''),
+  smtp_from: z.string().trim().max(255).optional().default(''),
 });
 
 export const adjustBalanceSchema = z.object({

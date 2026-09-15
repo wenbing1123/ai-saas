@@ -50,6 +50,20 @@
       "when": 1789393620695,
       "tag": "0006_glamorous_xorn",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789479683282,
+      "tag": "0007_common_luminals",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789482079856,
+      "tag": "0008_stiff_sheva_callister",
+      "breakpoints": true
     }
   ]
 }

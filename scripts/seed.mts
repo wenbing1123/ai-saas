@@ -572,8 +572,8 @@ async function main() {
   const ownerKey = `sk-nebula-${randomBytes(24).toString('hex')}`;
   const ownerKeyHash = createHash('sha256').update(ownerKey).digest('hex');
   const inserted = await sql`
-    INSERT INTO sys_user (email, password_hash, name, balance_cents)
-    VALUES ('wenbing1123@163.com', ${ownerPasswordHash}, 'Wenbing', ${ownerBalanceCents})
+    INSERT INTO sys_user (email, password_hash, name, balance_cents, email_verified_at)
+    VALUES ('wenbing1123@163.com', ${ownerPasswordHash}, 'Wenbing', ${ownerBalanceCents}, now())
     ON CONFLICT (email) WHERE deleted = 0 DO NOTHING
     RETURNING id
   `;
