@@ -81,7 +81,8 @@ export const users = pgTable(
   {
     ...baseColumns,
     email: varchar('email', { length: 255 }).notNull(),
-    passwordHash: varchar('password_hash', { length: 255 }).notNull(),
+    /** Null for OAuth-only accounts (no local password set yet). */
+    passwordHash: varchar('password_hash', { length: 255 }),
     name: varchar('name', { length: 100 }).notNull(),
     /** UserStatus enum: 1 = active, 2 = suspended */
     status: smallint('status').notNull().default(UserStatus.Active).$type<UserStatus>(),
@@ -250,6 +251,33 @@ export const emailTokens = pgTable(
     uniqueIndex('sys_email_token_hash_unique').on(t.tokenHash).where(sql`${t.deleted} = 0`),
     index('sys_email_token_user_purpose_idx').on(t.userId, t.purpose),
     check('sys_email_token_purpose_check', sql`${t.purpose} IN (1, 2)`),
+  ],
+);
+
+/**
+ * Third-party OAuth identities linked to local users (Google, GitHub, …).
+ * `provider` is a free-form varchar so adding a new IdP requires no migration.
+ * A local user may link several providers; a provider identity maps to one user.
+ */
+export const oauthAccounts = pgTable(
+  'sys_oauth_account',
+  {
+    ...baseColumns,
+    userId: uuid('user_id')
+      .notNull()
+      .references((): AnyPgColumn => users.id, { onDelete: 'cascade' }),
+    /** IdP identifier: 'google' | 'github' | future providers. */
+    provider: varchar('provider', { length: 32 }).notNull(),
+    /** The IdP's stable account id (sub for Google, numeric id for GitHub). */
+    providerAccountId: varchar('provider_account_id', { length: 255 }).notNull(),
+    /** Email reported by the IdP at link time (informational). */
+    providerEmail: varchar('provider_email', { length: 255 }),
+  },
+  (t) => [
+    uniqueIndex('sys_oauth_account_provider_id_unique')
+      .on(t.provider, t.providerAccountId)
+      .where(sql`${t.deleted} = 0`),
+    index('sys_oauth_account_user_idx').on(t.userId),
   ],
 );
 
@@ -614,3 +642,4 @@ export type NewDocPageRow = typeof docPages.$inferInsert;
 export type CampaignRow = typeof campaigns.$inferSelect;
 export type NewCampaignRow = typeof campaigns.$inferInsert;
 export type EmailTokenRow = typeof emailTokens.$inferSelect;
+export type OAuthAccountRow = typeof oauthAccounts.$inferSelect;

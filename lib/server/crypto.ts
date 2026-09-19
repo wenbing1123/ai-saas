@@ -13,7 +13,8 @@ export function hashPassword(password: string): string {
   return `scrypt$${salt}$${derived}`;
 }
 
-export function verifyPassword(password: string, stored: string): boolean {
+export function verifyPassword(password: string, stored: string | null): boolean {
+  if (!stored) return false; // OAuth-only account has no local password.
   const parts = stored.split('$');
   if (parts.length !== 3 || parts[0] !== 'scrypt') return false;
   const [, salt, hash] = parts;

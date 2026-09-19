@@ -233,6 +233,16 @@ export const marketingEn = {
     noAccount: 'No account?',
     createOne: 'Create one',
     unverified: 'Please activate your account via the email link before signing in.',
+    orContinue: 'or continue with',
+    oauthGoogle: 'Sign in with Google',
+    oauthGithub: 'Sign in with GitHub',
+    oauthErrors: {
+      provider_unavailable: 'This sign-in provider is not available right now.',
+      cancelled: 'Sign-in was cancelled. Please try again.',
+      invalid_state: 'Sign-in session expired. Please try again.',
+      account_suspended: 'This account has been suspended. Contact support.',
+      sign_in_failed: 'Sign-in failed. Please try again.',
+    },
   },
   register: {
     title: 'Create your account',
@@ -548,6 +558,16 @@ export const marketingZh = {
     noAccount: '还没有账号？',
     createOne: '立即注册',
     unverified: '请先通过邮件中的激活链接激活账号后再登录。',
+    orContinue: '或使用以下方式登录',
+    oauthGoogle: '使用 Google 登录',
+    oauthGithub: '使用 GitHub 登录',
+    oauthErrors: {
+      provider_unavailable: '该登录方式暂不可用。',
+      cancelled: '登录已取消，请重试。',
+      invalid_state: '登录会话已过期，请重试。',
+      account_suspended: '该账号已被停用，请联系客服。',
+      sign_in_failed: '登录失败，请重试。',
+    },
   },
   register: {
     title: '创建你的账号',
