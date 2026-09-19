@@ -10,7 +10,8 @@
  * cached entity is loaded back from PostgreSQL on a miss.
  */
 
-const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
+/** Login session lifetime — SESSION_TTL_DAYS env (default 7 days), applies to all users. */
+const SESSION_TTL_SECONDS = Number(process.env.SESSION_TTL_DAYS ?? 7) * 86400;
 const TOKEN_TTL_SECONDS = 60; // api key → user/token lookup
 const MODEL_TTL_SECONDS = 300;
 const SETTINGS_TTL_SECONDS = 120;
@@ -32,6 +33,9 @@ export const EMAIL_HOURLY_LIMIT = 5;
 export const redisKeys = {
   /** Login sessions: session:{sid} */
   session: (sid: string) => `session:${sid}`,
+
+  /** Live session index per user+platform: user:sess:{userId}:{deviceType} (SET of sids). */
+  userDeviceSessions: (userId: string, deviceType: string) => `user:sess:${userId}:${deviceType}`,
 
   /** API key resolution cache: apikey:{sha256} */
   apiKey: (keyHash: string) => `apikey:${keyHash}`,
