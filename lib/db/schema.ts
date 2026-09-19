@@ -100,14 +100,14 @@ export const users = pgTable(
     /** End of current package entitlement (rate-limit tier), extended on each purchase. */
     packageExpireAt: timestamp('package_expire_at', { withTimezone: true }),
   },
-  (t) => ({
+  (t) => [
     // Only live rows participate in uniqueness — a soft-deleted email can be re-registered.
-    emailUnique: uniqueIndex('sys_user_email_unique').on(t.email).where(sql`${t.deleted} = 0`),
-    inviteCodeUnique: uniqueIndex('sys_user_invite_code_unique').on(t.inviteCode).where(sql`${t.deleted} = 0`),
-    statusIdx: index('sys_user_status_idx').on(t.status),
-    invitedByIdx: index('sys_user_invited_by_idx').on(t.invitedById),
-    statusCheck: check('sys_user_status_check', sql`${t.status} IN (1, 2)`),
-  }),
+    uniqueIndex('sys_user_email_unique').on(t.email).where(sql`${t.deleted} = 0`),
+    uniqueIndex('sys_user_invite_code_unique').on(t.inviteCode).where(sql`${t.deleted} = 0`),
+    index('sys_user_status_idx').on(t.status),
+    index('sys_user_invited_by_idx').on(t.invitedById),
+    check('sys_user_status_check', sql`${t.status} IN (1, 2)`),
+  ],
 );
 
 export const roles = pgTable(
@@ -124,10 +124,10 @@ export const roles = pgTable(
     isSystem: boolean('is_system').notNull().default(false),
     sortOrder: integer('sort_order').notNull().default(100),
   },
-  (t) => ({
-    codeUnique: uniqueIndex('sys_role_code_unique').on(t.code).where(sql`${t.deleted} = 0`),
-    statusCheck: check('sys_role_status_check', sql`${t.status} IN (1, 2)`),
-  }),
+  (t) => [
+    uniqueIndex('sys_role_code_unique').on(t.code).where(sql`${t.deleted} = 0`),
+    check('sys_role_status_check', sql`${t.status} IN (1, 2)`),
+  ],
 );
 
 export const permissions = pgTable(
@@ -144,11 +144,11 @@ export const permissions = pgTable(
     description: text('description'),
     sortOrder: integer('sort_order').notNull().default(100),
   },
-  (t) => ({
-    codeUnique: uniqueIndex('sys_permission_code_unique').on(t.code).where(sql`${t.deleted} = 0`),
-    moduleIdx: index('sys_permission_module_idx').on(t.module),
-    typeCheck: check('sys_permission_type_check', sql`${t.type} IN (1, 2)`),
-  }),
+  (t) => [
+    uniqueIndex('sys_permission_code_unique').on(t.code).where(sql`${t.deleted} = 0`),
+    index('sys_permission_module_idx').on(t.module),
+    check('sys_permission_type_check', sql`${t.type} IN (1, 2)`),
+  ],
 );
 
 export const userRoles = pgTable(
@@ -162,10 +162,10 @@ export const userRoles = pgTable(
       .notNull()
       .references((): AnyPgColumn => roles.id, { onDelete: 'cascade' }),
   },
-  (t) => ({
-    pairUnique: uniqueIndex('sys_user_role_pair_unique').on(t.userId, t.roleId).where(sql`${t.deleted} = 0`),
-    roleIdx: index('sys_user_role_role_idx').on(t.roleId),
-  }),
+  (t) => [
+    uniqueIndex('sys_user_role_pair_unique').on(t.userId, t.roleId).where(sql`${t.deleted} = 0`),
+    index('sys_user_role_role_idx').on(t.roleId),
+  ],
 );
 
 export const rolePermissions = pgTable(
@@ -179,10 +179,10 @@ export const rolePermissions = pgTable(
       .notNull()
       .references((): AnyPgColumn => permissions.id, { onDelete: 'cascade' }),
   },
-  (t) => ({
-    pairUnique: uniqueIndex('sys_role_permission_pair_unique').on(t.roleId, t.permissionId).where(sql`${t.deleted} = 0`),
-    permissionIdx: index('sys_role_permission_perm_idx').on(t.permissionId),
-  }),
+  (t) => [
+    uniqueIndex('sys_role_permission_pair_unique').on(t.roleId, t.permissionId).where(sql`${t.deleted} = 0`),
+    index('sys_role_permission_perm_idx').on(t.permissionId),
+  ],
 );
 
 /** Key/value platform config. */
@@ -193,9 +193,9 @@ export const appSettings = pgTable(
     key: varchar('key', { length: 80 }).notNull(),
     value: jsonb('value').$type<unknown>().notNull(),
   },
-  (t) => ({
-    keyUnique: uniqueIndex('sys_setting_key_unique').on(t.key).where(sql`${t.deleted} = 0`),
-  }),
+  (t) => [
+    uniqueIndex('sys_setting_key_unique').on(t.key).where(sql`${t.deleted} = 0`),
+  ],
 );
 
 /**
@@ -219,13 +219,13 @@ export const translations = pgTable(
     locale: smallint('locale').notNull().$type<DocLocale>(),
     value: text('value').notNull(),
   },
-  (t) => ({
-    entityUnique: uniqueIndex('sys_i18n_tr_unique')
+  (t) => [
+    uniqueIndex('sys_i18n_tr_unique')
       .on(t.entityType, t.entityId, t.field, t.locale)
       .where(sql`${t.deleted} = 0`),
-    entityIdx: index('sys_i18n_tr_entity_idx').on(t.entityType, t.entityId),
-    localeCheck: check('sys_i18n_tr_locale_check', sql`${t.locale} IN (1, 2)`),
-  }),
+    index('sys_i18n_tr_entity_idx').on(t.entityType, t.entityId),
+    check('sys_i18n_tr_locale_check', sql`${t.locale} IN (1, 2)`),
+  ],
 );
 
 /**
@@ -246,11 +246,11 @@ export const emailTokens = pgTable(
     usedAt: timestamp('used_at', { withTimezone: true }),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   },
-  (t) => ({
-    tokenHashUnique: uniqueIndex('sys_email_token_hash_unique').on(t.tokenHash).where(sql`${t.deleted} = 0`),
-    userPurposeIdx: index('sys_email_token_user_purpose_idx').on(t.userId, t.purpose),
-    purposeCheck: check('sys_email_token_purpose_check', sql`${t.purpose} IN (1, 2)`),
-  }),
+  (t) => [
+    uniqueIndex('sys_email_token_hash_unique').on(t.tokenHash).where(sql`${t.deleted} = 0`),
+    index('sys_email_token_user_purpose_idx').on(t.userId, t.purpose),
+    check('sys_email_token_purpose_check', sql`${t.purpose} IN (1, 2)`),
+  ],
 );
 
 // ---------------------------------------------------------------------------
@@ -308,20 +308,20 @@ export const models = pgTable(
     enabled: boolean('enabled').notNull().default(true),
     sortOrder: integer('sort_order').notNull().default(100),
   },
-  (t) => ({
-    modelIdUnique: uniqueIndex('biz_model_model_id_unique').on(t.modelId).where(sql`${t.deleted} = 0`),
-    providerIdx: index('biz_model_provider_idx').on(t.provider),
-    enabledIdx: index('biz_model_enabled_idx').on(t.enabled),
+  (t) => [
+    uniqueIndex('biz_model_model_id_unique').on(t.modelId).where(sql`${t.deleted} = 0`),
+    index('biz_model_provider_idx').on(t.provider),
+    index('biz_model_enabled_idx').on(t.enabled),
     // Hard floor at the database level: sell price can never be below cost.
-    sellInputCheck: check('biz_model_sell_input_ge_cost', sql`${t.sellInputPer1m} >= ${t.inputCostPer1m}`),
-    sellOutputCheck: check('biz_model_sell_output_ge_cost', sql`${t.sellOutputPer1m} >= ${t.outputCostPer1m}`),
-    sellCacheReadCheck: check('biz_model_sell_cache_read_ge_cost', sql`${t.sellCacheReadPer1m} >= ${t.cacheReadCostPer1m}`),
-    sellCacheWriteCheck: check('biz_model_sell_cache_write_ge_cost', sql`${t.sellCacheWritePer1m} >= ${t.cacheWriteCostPer1m}`),
-    markupCheck: check('biz_model_markup_non_negative', sql`${t.markupPercent} >= 0`),
-    providerCheck: check('biz_model_provider_check', sql`${t.provider} BETWEEN 1 AND 10`),
-    costCurrencyCheck: check('biz_model_cost_currency_check', sql`${t.costCurrency} IN (1, 2)`),
-    protocolCheck: check('biz_model_protocol_check', sql`${t.protocol} IN (1, 2)`),
-  }),
+    check('biz_model_sell_input_ge_cost', sql`${t.sellInputPer1m} >= ${t.inputCostPer1m}`),
+    check('biz_model_sell_output_ge_cost', sql`${t.sellOutputPer1m} >= ${t.outputCostPer1m}`),
+    check('biz_model_sell_cache_read_ge_cost', sql`${t.sellCacheReadPer1m} >= ${t.cacheReadCostPer1m}`),
+    check('biz_model_sell_cache_write_ge_cost', sql`${t.sellCacheWritePer1m} >= ${t.cacheWriteCostPer1m}`),
+    check('biz_model_markup_non_negative', sql`${t.markupPercent} >= 0`),
+    check('biz_model_provider_check', sql`${t.provider} BETWEEN 1 AND 10`),
+    check('biz_model_cost_currency_check', sql`${t.costCurrency} IN (1, 2)`),
+    check('biz_model_protocol_check', sql`${t.protocol} IN (1, 2)`),
+  ],
 );
 
 export const plans = pgTable(
@@ -346,13 +346,13 @@ export const plans = pgTable(
     active: boolean('active').notNull().default(true),
     sortOrder: integer('sort_order').notNull().default(100),
   },
-  (t) => ({
-    slugUnique: uniqueIndex('biz_plan_slug_unique').on(t.slug).where(sql`${t.deleted} = 0`),
-    activeIdx: index('biz_plan_active_idx').on(t.active),
-    pricePositive: check('biz_plan_price_positive', sql`${t.priceCents} > 0`),
-    creditPositive: check('biz_plan_credit_positive', sql`${t.creditCents} > 0`),
-    validDaysPositive: check('biz_plan_valid_days_positive', sql`${t.validDays} > 0`),
-  }),
+  (t) => [
+    uniqueIndex('biz_plan_slug_unique').on(t.slug).where(sql`${t.deleted} = 0`),
+    index('biz_plan_active_idx').on(t.active),
+    check('biz_plan_price_positive', sql`${t.priceCents} > 0`),
+    check('biz_plan_credit_positive', sql`${t.creditCents} > 0`),
+    check('biz_plan_valid_days_positive', sql`${t.validDays} > 0`),
+  ],
 );
 
 export const orders = pgTable(
@@ -382,13 +382,13 @@ export const orders = pgTable(
     refundedAt: timestamp('refunded_at', { withTimezone: true }),
     refundedAmountCents: bigint('refunded_amount_cents', { mode: 'bigint' }).notNull().default(sql`0`),
   },
-  (t) => ({
-    orderNoUnique: uniqueIndex('biz_order_no_unique').on(t.orderNo).where(sql`${t.deleted} = 0`),
-    userIdx: index('biz_order_user_idx').on(t.userId, t.createdAt),
-    statusIdx: index('biz_order_status_idx').on(t.status),
-    statusCheck: check('biz_order_status_check', sql`${t.status} BETWEEN 1 AND 4`),
-    paymentChannelCheck: check('biz_order_channel_check', sql`${t.paymentChannel} IN (1, 2)`),
-  }),
+  (t) => [
+    uniqueIndex('biz_order_no_unique').on(t.orderNo).where(sql`${t.deleted} = 0`),
+    index('biz_order_user_idx').on(t.userId, t.createdAt),
+    index('biz_order_status_idx').on(t.status),
+    check('biz_order_status_check', sql`${t.status} BETWEEN 1 AND 4`),
+    check('biz_order_channel_check', sql`${t.paymentChannel} IN (1, 2)`),
+  ],
 );
 
 /** One row per purchase; active entitlement = latest row with expire_at > now. */
@@ -413,10 +413,10 @@ export const subscriptions = pgTable(
     /** SubscriptionStatus enum: 1 active, 2 expired */
     status: smallint('status').notNull().default(SubscriptionStatus.Active).$type<SubscriptionStatus>(),
   },
-  (t) => ({
-    userIdx: index('biz_subscription_user_idx').on(t.userId, t.expireAt),
-    statusCheck: check('biz_subscription_status_check', sql`${t.status} IN (1, 2)`),
-  }),
+  (t) => [
+    index('biz_subscription_user_idx').on(t.userId, t.expireAt),
+    check('biz_subscription_status_check', sql`${t.status} IN (1, 2)`),
+  ],
 );
 
 export const apiTokens = pgTable(
@@ -438,11 +438,11 @@ export const apiTokens = pgTable(
     requestCount: bigint('request_count', { mode: 'bigint' }).notNull().default(sql`0`),
     expiresAt: timestamp('expires_at', { withTimezone: true }),
   },
-  (t) => ({
-    keyHashUnique: uniqueIndex('biz_api_token_hash_unique').on(t.keyHash).where(sql`${t.deleted} = 0`),
-    userIdx: index('biz_api_token_user_idx').on(t.userId),
-    statusCheck: check('biz_api_token_status_check', sql`${t.status} IN (1, 2)`),
-  }),
+  (t) => [
+    uniqueIndex('biz_api_token_hash_unique').on(t.keyHash).where(sql`${t.deleted} = 0`),
+    index('biz_api_token_user_idx').on(t.userId),
+    check('biz_api_token_status_check', sql`${t.status} IN (1, 2)`),
+  ],
 );
 
 // ---------------------------------------------------------------------------
@@ -479,13 +479,13 @@ export const usageRecords = pgTable(
     status: smallint('status').notNull().default(UsageStatus.Success).$type<UsageStatus>(),
     errorMessage: text('error_message'),
   },
-  (t) => ({
-    userCreatedIdx: index('bill_usage_user_created_idx').on(t.userId, t.createdAt),
-    modelCreatedIdx: index('bill_usage_model_created_idx').on(t.modelId, t.createdAt),
-    createdIdx: index('bill_usage_created_idx').on(t.createdAt),
-    providerCheck: check('bill_usage_provider_check', sql`${t.provider} BETWEEN 1 AND 6`),
-    statusCheck: check('bill_usage_status_check', sql`${t.status} BETWEEN 1 AND 3`),
-  }),
+  (t) => [
+    index('bill_usage_user_created_idx').on(t.userId, t.createdAt),
+    index('bill_usage_model_created_idx').on(t.modelId, t.createdAt),
+    index('bill_usage_created_idx').on(t.createdAt),
+    check('bill_usage_provider_check', sql`${t.provider} BETWEEN 1 AND 6`),
+    check('bill_usage_status_check', sql`${t.status} BETWEEN 1 AND 3`),
+  ],
 );
 
 export const creditLedger = pgTable(
@@ -504,11 +504,11 @@ export const creditLedger = pgTable(
     refId: uuid('ref_id'),
     note: text('note'),
   },
-  (t) => ({
-    userIdx: index('bill_credit_ledger_user_idx').on(t.userId, t.createdAt),
-    typeIdx: index('bill_credit_ledger_type_idx').on(t.type),
-    typeCheck: check('bill_credit_ledger_type_check', sql`${t.type} BETWEEN 1 AND 6`),
-  }),
+  (t) => [
+    index('bill_credit_ledger_user_idx').on(t.userId, t.createdAt),
+    index('bill_credit_ledger_type_idx').on(t.type),
+    check('bill_credit_ledger_type_check', sql`${t.type} BETWEEN 1 AND 6`),
+  ],
 );
 
 // ---------------------------------------------------------------------------
@@ -532,11 +532,11 @@ export const docPages = pgTable(
     sortOrder: integer('sort_order').notNull().default(100),
     enabled: boolean('enabled').notNull().default(true),
   },
-  (t) => ({
-    slugLocaleUnique: uniqueIndex('cms_doc_page_slug_locale_unique').on(t.slug, t.locale).where(sql`${t.deleted} = 0`),
-    enabledIdx: index('cms_doc_page_enabled_idx').on(t.enabled, t.locale, t.sortOrder),
-    localeCheck: check('cms_doc_page_locale_check', sql`${t.locale} IN (1, 2)`),
-  }),
+  (t) => [
+    uniqueIndex('cms_doc_page_slug_locale_unique').on(t.slug, t.locale).where(sql`${t.deleted} = 0`),
+    index('cms_doc_page_enabled_idx').on(t.enabled, t.locale, t.sortOrder),
+    check('cms_doc_page_locale_check', sql`${t.locale} IN (1, 2)`),
+  ],
 );
 
 // ---------------------------------------------------------------------------
@@ -560,11 +560,11 @@ export const campaigns = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => ({
-    typeIdx: index('mkt_campaign_type_idx').on(t.type, t.enabled),
-    typeCheck: check('mkt_campaign_type_check', sql`${t.type} BETWEEN 1 AND 2`),
-    rewardCheck: check('mkt_campaign_reward_check', sql`${t.rewardCents} >= 0`),
-  }),
+  (t) => [
+    index('mkt_campaign_type_idx').on(t.type, t.enabled),
+    check('mkt_campaign_type_check', sql`${t.type} BETWEEN 1 AND 2`),
+    check('mkt_campaign_reward_check', sql`${t.rewardCents} >= 0`),
+  ],
 );
 
 export const campaignRecords = pgTable(
@@ -581,10 +581,10 @@ export const campaignRecords = pgTable(
     meta: jsonb('meta').$type<Record<string, unknown>>().notNull().default({}),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => ({
-    userIdx: index('mkt_campaign_record_user_idx').on(t.userId, t.campaignId),
-    uniqUserCampaign: unique('mkt_campaign_record_uniq').on(t.campaignId, t.userId),
-  }),
+  (t) => [
+    index('mkt_campaign_record_user_idx').on(t.userId, t.campaignId),
+    unique('mkt_campaign_record_uniq').on(t.campaignId, t.userId),
+  ],
 );
 
 // ---------------------------------------------------------------------------

@@ -4,6 +4,12 @@ import * as schema from './schema';
 
 const DATABASE_URL = process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/ai_saas';
 
+/** Pool tunables (see .env.example). Defaults suit a small Next.js deployment. */
+const POOL_MAX = Number(process.env.PG_POOL_MAX ?? 10);
+const POOL_IDLE_TIMEOUT = Number(process.env.PG_IDLE_TIMEOUT ?? 30);
+const POOL_CONNECT_TIMEOUT = Number(process.env.PG_CONNECT_TIMEOUT ?? 10);
+const POOL_MAX_LIFETIME = Number(process.env.PG_MAX_LIFETIME ?? 1800);
+
 declare global {
   // eslint-disable-next-line no-var
   var pgClient: postgres.Sql | undefined;
@@ -13,9 +19,10 @@ declare global {
 
 function createClient() {
   return postgres(DATABASE_URL, {
-    max: 10,
-    idle_timeout: 30,
-    connect_timeout: 10,
+    max: POOL_MAX,
+    idle_timeout: POOL_IDLE_TIMEOUT,
+    connect_timeout: POOL_CONNECT_TIMEOUT,
+    max_lifetime: POOL_MAX_LIFETIME,
     prepare: true,
   });
 }

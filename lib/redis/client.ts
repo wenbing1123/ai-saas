@@ -3,6 +3,13 @@ import Redis from 'ioredis';
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 const REDIS_PREFIX = process.env.REDIS_PREFIX ?? 'ai_saas:';
 
+/** Connection tunables (see .env.example). ioredis multiplexes commands over a
+ * single socket; these control reconnect/timeout behavior rather than pool size. */
+const REDIS_CONNECT_TIMEOUT = Number(process.env.REDIS_CONNECT_TIMEOUT ?? 10_000);
+const REDIS_COMMAND_TIMEOUT = Number(process.env.REDIS_COMMAND_TIMEOUT ?? 5_000);
+const REDIS_KEEP_ALIVE = Number(process.env.REDIS_KEEP_ALIVE ?? 30_000);
+const REDIS_MAX_RETRIES_PER_REQUEST = Number(process.env.REDIS_MAX_RETRIES_PER_REQUEST ?? 3);
+
 declare global {
   // eslint-disable-next-line no-var
   var redisClient: Redis | undefined;
@@ -11,9 +18,15 @@ declare global {
 export function getRedis() {
   if (!globalThis.redisClient) {
     globalThis.redisClient = new Redis(REDIS_URL, {
-      maxRetriesPerRequest: null,
+      // null (no per-request retry cap) is required for blocking commands; 3 is
+      // a saner bound for request-path usage. Configurable via REDIS_MAX_RETRIES_PER_REQUEST.
+      maxRetriesPerRequest: Number.isNaN(REDIS_MAX_RETRIES_PER_REQUEST) ? null : REDIS_MAX_RETRIES_PER_REQUEST,
       enableReadyCheck: false,
       lazyConnect: true,
+      connectTimeout: REDIS_CONNECT_TIMEOUT,
+      commandTimeout: REDIS_COMMAND_TIMEOUT,
+      keepAlive: REDIS_KEEP_ALIVE,
+      retryStrategy: (times) => Math.min(times * 500, 5_000),
     });
   }
   return globalThis.redisClient;
