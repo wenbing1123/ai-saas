@@ -1,19 +1,11 @@
 import { getRedis, prefixedKey } from '@/lib/redis/client';
-import { fetch as undiciFetch, ProxyAgent, type Dispatcher } from 'undici';
 
 /**
- * Optional egress proxy for IdP back-channel calls (token exchange, profile
- * fetch) — Node's global fetch ignores HTTP(S)_PROXY, so servers that cannot
- * reach Google/GitHub directly set OAUTH_PROXY_URL (e.g. http://127.0.0.1:7897).
- * Empty = direct connection.
+ * Outbound HTTP uses the global fetch. On dev machines that need an egress
+ * proxy, set HTTPS_PROXY/HTTP_PROXY (+NO_PROXY) in .env — the npm scripts run
+ * with NODE_USE_ENV_PROXY=1 so Node 24's global fetch honors them. Production
+ * simply leaves those variables empty for direct connections.
  */
-const oauthDispatcher: Dispatcher | undefined = process.env.OAUTH_PROXY_URL
-  ? new ProxyAgent(process.env.OAUTH_PROXY_URL)
-  : undefined;
-
-function ofetch(url: string, init: Parameters<typeof undiciFetch>[1]): ReturnType<typeof undiciFetch> {
-  return undiciFetch(url, { ...init, dispatcher: oauthDispatcher });
-}
 
 /**
  * Pluggable OAuth 2.0 (authorization-code) provider registry.
@@ -69,7 +61,7 @@ const google: OAuthProvider = {
   },
 
   async exchangeCode(code) {
-    const resp = await ofetch('https://oauth2.googleapis.com/token', {
+    const resp = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -87,7 +79,7 @@ const google: OAuthProvider = {
   },
 
   async fetchProfile(accessToken) {
-    const resp = await ofetch('https://openidconnect.googleapis.com/v1/userinfo', {
+    const resp = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
       headers: { authorization: `Bearer ${accessToken}` },
     });
     if (!resp.ok) throw new Error(`google userinfo failed: ${await resp.text()}`);
@@ -117,7 +109,7 @@ const github: OAuthProvider = {
   },
 
   async exchangeCode(code) {
-    const resp = await ofetch('https://github.com/login/oauth/access_token', {
+    const resp = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       body: JSON.stringify({
@@ -136,8 +128,8 @@ const github: OAuthProvider = {
   async fetchProfile(accessToken) {
     const headers = { authorization: `Bearer ${accessToken}`, accept: 'application/vnd.github+json' };
     const [userResp, emailsResp] = await Promise.all([
-      ofetch('https://api.github.com/user', { headers }),
-      ofetch('https://api.github.com/user/emails', { headers }),
+      fetch('https://api.github.com/user', { headers }),
+      fetch('https://api.github.com/user/emails', { headers }),
     ]);
     if (!userResp.ok) throw new Error(`github user fetch failed: ${await userResp.text()}`);
     const u = (await userResp.json()) as { id: number; login: string; name?: string; email?: string };

@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "dev": "NODE_USE_ENV_PROXY=1 next dev",
+    "build": "NODE_USE_ENV_PROXY=1 next build",
+    "start": "NODE_USE_ENV_PROXY=1 next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
@@ -33,7 +33,6 @@
     "stripe": "^22.6.2",
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",
-    "undici": "^8.10.2",
     "zod": "^3.23.8"
   },
   "devDependencies": {
