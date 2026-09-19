@@ -1,31 +1,44 @@
 'use client';
 
-import { useFormState } from 'react-dom';
+import { useState, useTransition } from 'react';
+import { Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Field, FormError, FormSuccess, SubmitButton } from '@/components/ui/form';
-import { changePasswordAction } from '@/lib/server/actions/auth';
+import { Button } from '@/components/ui/button';
+import { Field, FormError, FormSuccess } from '@/components/ui/form';
+import { apiPostForm } from '@/lib/client/api';
 import { getDict, type Locale } from '@/lib/i18n';
-import type { ActionResult } from '@/lib/validators';
-
-const initial: ActionResult = { ok: false };
+import { type ApiResponse, fieldErrorsOf, initialApiResponse } from '@/lib/server/api-response';
 
 export function ChangePasswordForm({ locale }: { locale: Locale }) {
   const t = getDict(locale).console.settings;
-  const [state, formAction] = useFormState(changePasswordAction, initial);
+  const [pending, startTransition] = useTransition();
+  const [state, setState] = useState<ApiResponse>(initialApiResponse());
+  const fieldErrors = fieldErrorsOf(state);
+
+  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    startTransition(async () => {
+      setState(await apiPostForm('/api/auth/change-password', new FormData(e.currentTarget)));
+    });
+  }
+
   return (
-    <form action={formAction} className="max-w-md space-y-4">
-      <FormError message={state.error} />
-      {state.ok && <FormSuccess message={t.passwordUpdated} />}
-      <Field label={t.currentPassword} htmlFor="currentPassword" error={state.fieldErrors?.currentPassword}>
+    <form onSubmit={onSubmit} className="max-w-md space-y-4">
+      <FormError message={state.msg} />
+      {state.code === '0000' && <FormSuccess message={t.passwordUpdated} />}
+      <Field label={t.currentPassword} htmlFor="currentPassword" error={fieldErrors?.currentPassword}>
         <Input id="currentPassword" name="currentPassword" type="password" autoComplete="current-password" required />
       </Field>
-      <Field label={t.newPassword} htmlFor="newPassword" hint={t.passwordHint} error={state.fieldErrors?.newPassword}>
+      <Field label={t.newPassword} htmlFor="newPassword" hint={t.passwordHint} error={fieldErrors?.newPassword}>
         <Input id="newPassword" name="newPassword" type="password" autoComplete="new-password" minLength={8} required />
       </Field>
-      <Field label={t.confirmPassword} htmlFor="confirmPassword" error={state.fieldErrors?.confirmPassword}>
+      <Field label={t.confirmPassword} htmlFor="confirmPassword" error={fieldErrors?.confirmPassword}>
         <Input id="confirmPassword" name="confirmPassword" type="password" autoComplete="new-password" minLength={8} required />
       </Field>
-      <SubmitButton>{t.updatePassword}</SubmitButton>
+      <Button type="submit" disabled={pending}>
+        {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        {t.updatePassword}
+      </Button>
     </form>
   );
 }

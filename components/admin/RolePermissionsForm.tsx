@@ -6,8 +6,8 @@ import { Loader2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FormError, FormSuccess } from '@/components/ui/form';
-import { setRolePermissionsAction } from '@/lib/server/actions/roles';
-import type { ActionResult } from '@/lib/validators';
+import { apiPutForm } from '@/lib/client/api';
+import { type ApiResponse, initialApiResponse } from '@/lib/server/api-response';
 import type { Permission, RoleWithPermissions } from '@/lib/types';
 import { RoleStatus } from '@/lib/db/enums';
 import { getDict, type Locale } from '@/lib/i18n';
@@ -26,7 +26,7 @@ export function RolePermissionsForm({
   const router = useRouter();
   const t = getDict(locale);
   const [pending, startTransition] = useTransition();
-  const [result, setResult] = useState<ActionResult>({ ok: false });
+  const [result, setResult] = useState<ApiResponse>(initialApiResponse());
 
   // Group permission points by domain module for tree-like editing.
   const modules = [...new Set(permissions.map((p) => p.module))].sort();
@@ -40,13 +40,13 @@ export function RolePermissionsForm({
   const roleDesc = rbacRoles[role.code]?.description ?? role.description;
 
   function submit() {
-    setResult({ ok: false });
+    setResult(initialApiResponse());
     const form = document.getElementById(`role-form-${role.id}`) as HTMLFormElement | null;
     if (!form) return;
     startTransition(async () => {
-      const res = await setRolePermissionsAction(role.id, new FormData(form));
+      const res = await apiPutForm(`/api/admin/roles/${role.id}/permissions`, new FormData(form));
       setResult(res);
-      if (res.ok) router.refresh();
+      if (res.code === '0000') router.refresh();
     });
   }
 
@@ -94,8 +94,8 @@ export function RolePermissionsForm({
           {t.admin.roles.lockedNote}
         </p>
       )}
-      <FormError message={result.error} />
-      {result.ok && <FormSuccess message={t.admin.roles.updated} />}
+      <FormError message={result.msg} />
+      {result.code === '0000' && <FormSuccess message={t.admin.roles.updated} />}
       {canManage && !locked && (
         <Button type="button" size="sm" disabled={pending} onClick={submit}>
           {pending ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Save className="mr-1 h-3 w-3" />}

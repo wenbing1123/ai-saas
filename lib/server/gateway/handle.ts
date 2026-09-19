@@ -1,4 +1,5 @@
 import { getRedis, prefixedKey, rateLimit } from '@/lib/redis/client';
+import { logger } from '@/lib/server/logger';
 import { redisKeys } from '@/lib/redis/keys';
 import { authenticateApiKey, extractApiKey, type AuthError } from '@/lib/server/gateway-auth';
 import { getEnabledCatalog, getModelByPublicId } from '@/lib/repositories/models';
@@ -73,7 +74,7 @@ async function recordBlocked(
       errorMessage: message,
     });
   } catch (err) {
-    console.error('[gateway] failed to record blocked request', err);
+    logger.error({ err }, '[gateway] failed to record blocked request');
   }
 }
 
@@ -164,7 +165,7 @@ function teeStream(
       try {
         onChunk(value);
       } catch (err) {
-        console.error('[gateway] sse parse error', err);
+        logger.error({ err }, '[gateway] sse parse error');
       }
       controller.enqueue(value);
     },
@@ -433,7 +434,7 @@ async function settle(
     statusCode,
     status: ok ? UsageStatus.Success : UsageStatus.UpstreamError,
     errorMessage,
-  }).catch((err) => console.error('[gateway] settle failed', err));
+  }).catch((err) => logger.error({ err }, '[gateway] settle failed'));
 
   touchTokenUsage(call.tokenId, null).catch(() => {});
 }

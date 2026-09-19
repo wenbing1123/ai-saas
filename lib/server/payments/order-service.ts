@@ -7,6 +7,7 @@
  */
 
 import { PaymentChannel, OrderStatus } from '@/lib/db/enums';
+import { logger } from '@/lib/server/logger';
 import type { User, Plan, Order } from '@/lib/types';
 import { createOrder, getOrderById, markOrderPaid, markOrderRefunded } from '@/lib/repositories/orders';
 import { getGateway } from './registry';
@@ -63,7 +64,7 @@ export async function handleWebhookEvent(event: GatewayWebhookEvent): Promise<vo
     case 'refund.failed':
     case 'unknown':
       // No state change; log and ack.
-      console.warn(`[payments] unhandled webhook event: ${event.type} for order ${event.orderId}`);
+      logger.warn({ event }, '[payments] unhandled webhook event');
       break;
   }
 }

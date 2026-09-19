@@ -1,5 +1,6 @@
 import nodemailer, { type Transporter } from 'nodemailer';
 import { getSettings } from '@/lib/repositories/settings';
+import { logger } from '@/lib/server/logger';
 import { appConfig } from '@/config/app';
 import type { SmtpConfig } from '@/lib/types';
 
@@ -73,17 +74,9 @@ function getTransport(cfg: SmtpConfig): Transporter {
 export async function sendEmail(msg: EmailMessage): Promise<'smtp' | 'log'> {
   const cfg = await resolveSmtp();
   if (!cfg) {
-    console.info(
-      [
-        '',
-        '──────────────────────── ✉️  EMAIL (SMTP not configured — log mode) ────────────────────────',
-        `To:      ${msg.to}`,
-        `Subject: ${msg.subject}`,
-        '',
-        msg.text,
-        '────────────────────────────────────────────────────────────────────────────────────────────',
-        '',
-      ].join('\n'),
+    logger.info(
+      { to: msg.to, subject: msg.subject, text: msg.text },
+      '✉️ EMAIL (SMTP not configured — log mode)',
     );
     return 'log';
   }

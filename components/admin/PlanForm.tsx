@@ -9,12 +9,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { FormError } from '@/components/ui/form';
-import type { ActionResult } from '@/lib/validators';
+import { apiPostForm, apiPutForm } from '@/lib/client/api';
+import { type ApiResponse, fieldErrorsOf, initialApiResponse } from '@/lib/server/api-response';
 import type { Plan } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { getDict, type Locale } from '@/lib/i18n';
-
-type PlanAction = (_prev: ActionResult, formData: FormData) => Promise<ActionResult>;
 
 const blank: Plan = {
   id: '',
@@ -53,20 +52,22 @@ export function PlanForm({
   plan,
   zh,
   models,
-  action,
+  endpoint,
+  method = 'POST',
 }: {
   locale: Locale;
   mode: 'create' | 'edit';
   plan?: Plan;
   zh?: PlanFormZh;
   models: PlanFormModelOption[];
-  action: PlanAction;
+  endpoint: string;
+  method?: 'POST' | 'PUT';
 }) {
   const router = useRouter();
   const t = getDict(locale);
   const fp = t.admin.forms.plan;
   const [pending, startTransition] = useTransition();
-  const [result, setResult] = useState<ActionResult>({ ok: false });
+  const [result, setResult] = useState<ApiResponse>(initialApiResponse());
   const [p, setP] = useState<Plan>(plan ?? blank);
   const set = <K extends keyof Plan>(key: K, value: Plan[K]) => setP((prev) => ({ ...prev, [key]: value }));
   const [zhName, setZhName] = useState(zh?.name ?? '');
@@ -89,7 +90,7 @@ export function PlanForm({
 
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setResult({ ok: false });
+    setResult(initialApiResponse());
     const fd = new FormData();
     fd.set('slug', p.slug);
     fd.set('name', p.name);
@@ -109,9 +110,12 @@ export function PlanForm({
     for (const id of p.allowedModelIds) fd.append('allowedModel', id);
 
     startTransition(async () => {
-      const res = await action({ ok: false }, fd);
+      const res =
+        method === 'PUT'
+          ? await apiPutForm(endpoint, fd)
+          : await apiPostForm(endpoint, fd);
       setResult(res);
-      if (res.ok) {
+      if (res.code === '0000') {
         if (mode === 'create') router.push('/admin/plans');
         else router.refresh();
       }
@@ -120,8 +124,8 @@ export function PlanForm({
 
   return (
     <form onSubmit={submit} className="space-y-6">
-      {result.error && <FormError message={result.error} />}
-      {result.ok && mode === 'edit' && (
+      {result.msg && <FormError message={result.msg} />}
+      {result.code === '0000' && mode === 'edit' && (
         <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
           <CheckCircle2 className="h-4 w-4" /> {t.admin.forms.saved}
         </div>
@@ -129,10 +133,10 @@ export function PlanForm({
 
       <Section title={fp.basics}>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Shell label={fp.name} error={result.fieldErrors?.name}>
+          <Shell label={fp.name} error={fieldErrorsOf(result)?.name}>
             <Input value={p.name} onChange={(e) => set('name', e.target.value)} placeholder={fp.namePlaceholder} required />
           </Shell>
-          <Shell label={fp.slug} error={result.fieldErrors?.slug}>
+          <Shell label={fp.slug} error={fieldErrorsOf(result)?.slug}>
             <Input value={p.slug} onChange={(e) => set('slug', e.target.value)} placeholder="builder" required />
           </Shell>
           <Shell label={fp.sortOrder}>

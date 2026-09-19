@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { toggleModelAction } from '@/lib/server/actions/models';
+import { apiPatchJson } from '@/lib/client/api';
 import { cn } from '@/lib/utils';
 import { getDict, type Locale } from '@/lib/i18n';
 
@@ -19,12 +19,12 @@ export function ToggleModelButton({ locale, modelId, enabled }: { locale: Locale
     setError(null);
     startTransition(async () => {
       const next = !isEnabled;
-      const res = await toggleModelAction(modelId, next);
-      if (res.ok) {
+      const res = await apiPatchJson(`/api/admin/models/${modelId}`, { enabled: next });
+      if (res.code === '0000') {
         setIsEnabled(next);
         router.refresh();
       } else {
-        setError(res.error ?? t.admin.models.toggle.failed);
+        setError(res.msg || t.admin.models.toggle.failed);
       }
     });
   }

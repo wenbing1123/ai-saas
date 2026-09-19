@@ -4,7 +4,7 @@ const nextConfig = {
   // Keep database/cache drivers out of the server bundle so their runtime
   // type checks (e.g. `value instanceof Date` in postgres-js) keep working.
   experimental: {
-    serverComponentsExternalPackages: ['postgres', 'ioredis'],
+    serverComponentsExternalPackages: ['postgres', 'ioredis', 'pino', 'pino-roll', 'pino-pretty'],
   },
 };
 

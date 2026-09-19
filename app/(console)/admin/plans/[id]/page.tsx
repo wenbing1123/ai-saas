@@ -5,7 +5,6 @@ import { requireAdmin } from '@/lib/server/auth';
 import { getPlanById, PLAN_ENTITY } from '@/lib/repositories/plans';
 import { getEntityTranslations } from '@/lib/repositories/i18n';
 import { listModels } from '@/lib/repositories/models';
-import { updatePlanAction } from '@/lib/server/actions/plans';
 import { getLocale } from '@/lib/i18n/server';
 import { getDict } from '@/lib/i18n';
 
@@ -45,7 +44,8 @@ export default async function EditPlanPage({ params }: { params: { id: string } 
         plan={plan}
         zh={zh}
         models={models.map((m) => ({ id: m.id, label: m.displayName }))}
-        action={updatePlanAction.bind(null, plan.id)}
+        endpoint={`/api/admin/plans/${plan.id}`}
+        method="PUT"
       />
     </>
   );

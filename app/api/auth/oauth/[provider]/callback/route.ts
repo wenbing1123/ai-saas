@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getOAuthProvider, consumeOAuthState } from '@/lib/server/oauth/providers';
+import { logger } from '@/lib/server/logger';
 import { findOrCreateOAuthUser } from '@/lib/repositories/oauth';
 import { startSession } from '@/lib/server/auth';
 import { UserStatus } from '@/lib/db/enums';
@@ -49,7 +50,7 @@ export async function GET(
     await startSession(user.id);
     return NextResponse.redirect(new URL('/dashboard', url));
   } catch (err) {
-    console.error(`[oauth] ${providerId} sign-in failed:`, err);
+    logger.error({ err, provider: providerId }, '[oauth] sign-in failed');
     return back('/login?oauthError=sign_in_failed');
   }
 }

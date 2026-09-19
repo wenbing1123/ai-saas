@@ -4,7 +4,7 @@ import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Languages, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { setLocaleAction } from '@/lib/server/actions/locale';
+import { apiPostJson } from '@/lib/client/api';
 import type { Locale } from '@/lib/i18n/types';
 
 /**
@@ -24,7 +24,7 @@ export function LocaleSwitcher({ current }: { current: Locale }) {
       disabled={pending}
       onClick={() =>
         startTransition(async () => {
-          await setLocaleAction(target);
+          await apiPostJson('/api/locale', { locale: target });
           router.refresh();
         })
       }

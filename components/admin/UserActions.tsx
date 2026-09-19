@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Ban, RotateCcw, ShieldCheck, User as UserIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { setUserStatusAction, toggleUserRoleAction } from '@/lib/server/actions/admin-users';
+import { apiPostJson } from '@/lib/client/api';
 import { UserStatus } from '@/lib/db/enums';
 import { getDict, type Locale } from '@/lib/i18n';
 
@@ -25,11 +25,11 @@ export function UserActions({
   const [error, setError] = useState<string | null>(null);
   const isAdmin = roles.includes('admin');
 
-  function run(fn: () => Promise<{ ok: boolean; error?: string }>) {
+  function run(fn: () => Promise<{ code: string; msg: string }>) {
     setError(null);
     startTransition(async () => {
       const res = await fn();
-      if (!res.ok) setError(res.error ?? t.admin.users.actions.failed);
+      if (res.code !== '0000') setError(res.msg || t.admin.users.actions.failed);
       router.refresh();
     });
   }
@@ -39,25 +39,25 @@ export function UserActions({
       <div className="flex gap-2">
         {status === UserStatus.Active ? (
           <Button type="button" size="sm" variant="outline" disabled={pending}
-            onClick={() => run(() => setUserStatusAction(userId, UserStatus.Suspended))}>
+            onClick={() => run(() => apiPostJson(`/api/admin/users/${userId}/status`, { status: UserStatus.Suspended }))}>
             {pending ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Ban className="mr-1 h-3 w-3" />}
             {t.admin.users.actions.suspend}
           </Button>
         ) : (
           <Button type="button" size="sm" variant="outline" disabled={pending}
-            onClick={() => run(() => setUserStatusAction(userId, UserStatus.Active))}>
+            onClick={() => run(() => apiPostJson(`/api/admin/users/${userId}/status`, { status: UserStatus.Active }))}>
             {pending ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <RotateCcw className="mr-1 h-3 w-3" />}
             {t.admin.users.actions.activate}
           </Button>
         )}
         {isAdmin ? (
           <Button type="button" size="sm" variant="ghost" disabled={pending}
-            onClick={() => run(() => toggleUserRoleAction(userId, 'admin', false))}>
+            onClick={() => run(() => apiPostJson(`/api/admin/users/${userId}/roles`, { roleCode: 'admin', active: false }))}>
             <UserIcon className="mr-1 h-3 w-3" /> {t.admin.users.actions.revokeAdmin}
           </Button>
         ) : (
           <Button type="button" size="sm" variant="ghost" disabled={pending}
-            onClick={() => run(() => toggleUserRoleAction(userId, 'admin', true))}>
+            onClick={() => run(() => apiPostJson(`/api/admin/users/${userId}/roles`, { roleCode: 'admin', active: true }))}>
             <ShieldCheck className="mr-1 h-3 w-3" /> {t.admin.users.actions.makeAdmin}
           </Button>
         )}

@@ -4,7 +4,7 @@ import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { deleteDocAction } from '@/lib/server/actions/docs';
+import { apiDelete } from '@/lib/client/api';
 import { getDict, type Locale } from '@/lib/i18n';
 
 export function DocDeleteButton({ id, locale }: { id: string; locale: Locale }) {
@@ -15,8 +15,8 @@ export function DocDeleteButton({ id, locale }: { id: string; locale: Locale }) 
   function onDelete() {
     if (!window.confirm(t.admin.docsCms.deleteConfirm)) return;
     startTransition(async () => {
-      await deleteDocAction(id);
-      router.refresh();
+      const res = await apiDelete(`/api/admin/docs/${id}`);
+      if (res.code === '0000') router.refresh();
     });
   }
 

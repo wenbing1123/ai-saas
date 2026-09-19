@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { FormError, FormSuccess } from '@/components/ui/form';
-import { adjustBalanceAction } from '@/lib/server/actions/admin-users';
-import type { ActionResult } from '@/lib/validators';
+import { apiPostForm } from '@/lib/client/api';
+import { type ApiResponse, initialApiResponse } from '@/lib/server/api-response';
+import { ErrorCodes } from '@/lib/server/errors';
 import { getDict, type Locale } from '@/lib/i18n';
 
 export function AdjustBalanceForm({ locale, userId }: { locale: Locale; userId: string }) {
@@ -16,24 +17,24 @@ export function AdjustBalanceForm({ locale, userId }: { locale: Locale; userId: 
   const t = getDict(locale);
   const fb = t.admin.userDetail.adjustBalance;
   const [pending, startTransition] = useTransition();
-  const [result, setResult] = useState<ActionResult>({ ok: false });
+  const [result, setResult] = useState<ApiResponse>(initialApiResponse());
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState(fb.defaultNote);
 
   function submit(sign: 1 | -1) {
-    setResult({ ok: false });
+    setResult(initialApiResponse());
     const value = Number(amount);
     if (!value || value <= 0) {
-      setResult({ ok: false, error: fb.enterPositive });
+      setResult({ code: ErrorCodes.VALIDATION_FAILED, msg: fb.enterPositive, data: {} });
       return;
     }
     const fd = new FormData();
     fd.set('amountDollars', String(sign * value));
     fd.set('note', note);
     startTransition(async () => {
-      const res = await adjustBalanceAction(userId, { ok: false }, fd);
+      const res = await apiPostForm(`/api/admin/users/${userId}/balance`, fd);
       setResult(res);
-      if (res.ok) {
+      if (res.code === '0000') {
         setAmount('');
         router.refresh();
       }
@@ -42,8 +43,8 @@ export function AdjustBalanceForm({ locale, userId }: { locale: Locale; userId: 
 
   return (
     <div className="space-y-4">
-      <FormError message={result.error} />
-      {result.ok && <FormSuccess message={fb.success} />}
+      <FormError message={result.msg} />
+      {result.code === '0000' && <FormSuccess message={fb.success} />}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="adj-amount" className="text-xs font-medium">{fb.amount}</Label>

@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { Loader2, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { refundOrderAction } from '@/lib/server/actions/orders';
+import { apiPostJson } from '@/lib/client/api';
 import { getDict, type Locale } from '@/lib/i18n';
 
 export function RefundOrderButton({ orderId, locale }: { orderId: string; locale: Locale }) {
@@ -15,8 +15,8 @@ export function RefundOrderButton({ orderId, locale }: { orderId: string; locale
     if (!window.confirm(t.refundConfirm)) return;
     setError(null);
     startTransition(async () => {
-      const result = await refundOrderAction(orderId);
-      if (!result.ok) setError(result.error ?? t.refundFailed);
+      const result = await apiPostJson(`/api/admin/orders/${orderId}/refund`);
+      if (result.code !== '0000') setError(result.msg || t.refundFailed);
     });
   }
 

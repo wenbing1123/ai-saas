@@ -9,8 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { FormError } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { updateSettingsAction } from '@/lib/server/actions/settings';
-import type { ActionResult } from '@/lib/validators';
+import { apiPutForm } from '@/lib/client/api';
+import { type ApiResponse, initialApiResponse } from '@/lib/server/api-response';
 import type { PlatformSettings } from '@/lib/types';
 import { getDict, type Locale } from '@/lib/i18n';
 import { infraSurchargePer1m, effectiveForexDivisor } from '@/lib/server/pricing';
@@ -23,7 +23,7 @@ export function SettingsForm({ locale, settings }: { locale: Locale; settings: P
   const t = getDict(locale);
   const s = t.admin.settings;
   const [pending, startTransition] = useTransition();
-  const [result, setResult] = useState<ActionResult>({ ok: false });
+  const [result, setResult] = useState<ApiResponse>(initialApiResponse());
   const [form, setForm] = useState<PlatformSettings>(settings);
   const [tab, setTab] = useState('pricing');
   const [upstream, setUpstream] = useState<Record<string, { api_key: string; base_url: string }>>(
@@ -65,16 +65,16 @@ export function SettingsForm({ locale, settings }: { locale: Locale; settings: P
       fd.set(`upstream_${label}_base_url`, upstream[label]?.base_url ?? '');
     }
     startTransition(async () => {
-      const res = await updateSettingsAction({ ok: false }, fd);
+      const res = await apiPutForm('/api/admin/settings', fd);
       setResult(res);
-      if (res.ok) router.refresh();
+      if (res.code === '0000') router.refresh();
     });
   }
 
   return (
     <form onSubmit={submit} className="space-y-6">
-      <FormError message={result.error} />
-      {result.ok && (
+      <FormError message={result.msg} />
+      {result.code === '0000' && (
         <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
           <CheckCircle2 className="h-4 w-4" /> {s.saved}
         </div>

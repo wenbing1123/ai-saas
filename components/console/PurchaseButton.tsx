@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { purchasePlanAction } from '@/lib/server/actions/billing';
+import { apiPostJson } from '@/lib/client/api';
 import { formatUsd } from '@/lib/server/pricing';
 import { getDict, type Locale } from '@/lib/i18n';
 import type { Plan } from '@/lib/types';
@@ -20,8 +20,11 @@ export function PurchaseButton({ plan, variant, locale }: { plan: Plan; variant?
   function buy() {
     setError(null);
     startTransition(async () => {
-      const result = await purchasePlanAction(plan.id);
-      if (result.ok && result.data) {
+      const result = await apiPostJson<{ orderNo: string; redirectUrl: string }>(
+        '/api/orders/purchase',
+        { planId: plan.id },
+      );
+      if (result.code === '0000' && result.data) {
         if (result.data.redirectUrl) {
           // Hosted checkout (Stripe). Redirect away from the app.
           window.location.assign(result.data.redirectUrl);
@@ -31,7 +34,7 @@ export function PurchaseButton({ plan, variant, locale }: { plan: Plan; variant?
         setPurchasedNo(result.data.orderNo);
         router.refresh();
       } else {
-        setError(result.error ?? t.paymentFailed);
+        setError(result.msg || t.paymentFailed);
       }
     });
   }

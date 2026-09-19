@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { payOrderAction } from '@/lib/server/actions/billing';
+import { apiPostJson } from '@/lib/client/api';
 import { getDict, type Locale } from '@/lib/i18n';
 
 export function CheckoutPayButton({ orderId, locale }: { orderId: string; locale: Locale }) {
@@ -16,11 +16,11 @@ export function CheckoutPayButton({ orderId, locale }: { orderId: string; locale
   function pay() {
     setError(null);
     startTransition(async () => {
-      const result = await payOrderAction(orderId);
-      if (result.ok) {
+      const result = await apiPostJson(`/api/orders/${orderId}/pay`);
+      if (result.code === '0000') {
         router.replace(`/dashboard/billing?paid=${orderId}`);
       } else {
-        setError(result.error ?? t.notFound);
+        setError(result.msg || t.notFound);
       }
     });
   }

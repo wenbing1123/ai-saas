@@ -1,12 +1,5 @@
 import { z, type ZodError } from 'zod';
 
-export interface ActionResult<T = undefined> {
-  ok: boolean;
-  error?: string;
-  fieldErrors?: Record<string, string>;
-  data?: T;
-}
-
 /** First error message per field, ready for <FieldError> rendering. */
 export function fieldErrorsFromZod(error: ZodError): Record<string, string> {
   const flat = error.flatten();

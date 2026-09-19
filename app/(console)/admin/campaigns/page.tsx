@@ -1,16 +1,14 @@
 import { PageHeader } from '@/components/console/StatCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { CampaignForm } from '@/components/admin/CampaignForm';
 import { requireAdmin } from '@/lib/server/auth';
 import { listCampaigns, getCampaign } from '@/lib/server/campaign-service';
 import { getLocale } from '@/lib/i18n/server';
 import { getDict } from '@/lib/i18n';
 import { formatUsd } from '@/lib/server/pricing';
 import { CampaignType } from '@/lib/db/enums';
-import { saveCampaignAction } from '@/lib/server/actions/campaigns';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
@@ -48,63 +46,19 @@ export default async function AdminCampaignsPage({
           <CardTitle className="text-base">{editing ? '编辑活动' : '新建活动'}</CardTitle>
         </CardHeader>
         <CardContent>
-          <form action={saveCampaignAction} className="grid gap-4 md:grid-cols-2">
-            <input type="hidden" name="id" value={editing?.id ?? ''} />
-
-            <div className="space-y-1.5">
-              <Label htmlFor="type">活动类型</Label>
-              <select id="type" name="type" className="h-9 rounded-md border px-3" defaultValue={editing?.type ?? CampaignType.Register}>
-                <option value={CampaignType.Register}>注册奖励</option>
-                <option value={CampaignType.Invite}>邀请奖励</option>
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="name">活动名称</Label>
-              <Input id="name" name="name" defaultValue={editing?.name ?? ''} placeholder="如新用户注册奖励" />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="rewardCents">奖励金额 ($)</Label>
-              <Input id="rewardCents" name="rewardCents" type="number" step="0.01" min="0" defaultValue={rewardInput} placeholder="6.00" />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="perUserLimit">每人限领次数</Label>
-              <Input id="perUserLimit" name="perUserLimit" type="number" min="1" defaultValue={editing?.perUserLimit ?? 1} />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="startsAt">开始时间</Label>
-              <Input id="startsAt" name="startsAt" type="datetime-local" defaultValue={editing ? toLocalInput(editing.startsAt) : toLocalInput(new Date())} />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="endsAt">结束时间（留空=永久）</Label>
-              <Input id="endsAt" name="endsAt" type="datetime-local" defaultValue={editing?.endsAt ? toLocalInput(editing.endsAt) : ''} />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="totalBudgetCents">总预算 ($)（留空=不限）</Label>
-              <Input id="totalBudgetCents" name="totalBudgetCents" type="number" step="0.01" min="0" defaultValue={budgetInput} placeholder="如 1000.00" />
-            </div>
-
-            <div className="flex items-end gap-2">
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="enabled" defaultChecked={editing?.enabled ?? true} />
-                启用
-              </label>
-            </div>
-
-            <div className="md:col-span-2 flex gap-2">
-              <Button type="submit">{editing ? '保存' : '创建'}</Button>
-              {editing && (
-                <Button type="button" variant="outline" asChild>
-                  <Link href="/admin/campaigns">取消</Link>
-                </Button>
-              )}
-            </div>
-          </form>
+          <CampaignForm
+            defaults={{
+              id: editing?.id,
+              type: editing?.type ?? CampaignType.Register,
+              name: editing?.name ?? '',
+              rewardInput,
+              perUserLimit: editing?.perUserLimit ?? 1,
+              startsAtInput: editing ? toLocalInput(editing.startsAt) : toLocalInput(new Date()),
+              endsAtInput: editing?.endsAt ? toLocalInput(editing.endsAt) : '',
+              totalBudgetInput: budgetInput,
+              enabled: editing?.enabled ?? true,
+            }}
+          />
         </CardContent>
       </Card>
 

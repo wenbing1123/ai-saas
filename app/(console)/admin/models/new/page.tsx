@@ -2,7 +2,6 @@ import { PageHeader } from '@/components/console/StatCard';
 import { ModelForm } from '@/components/admin/ModelForm';
 import { requireAdmin } from '@/lib/server/auth';
 import { getSettings } from '@/lib/repositories/settings';
-import { createModelAction } from '@/lib/server/actions/models';
 import { infraSurchargePer1m } from '@/lib/server/pricing';
 import { getLocale } from '@/lib/i18n/server';
 import { getDict } from '@/lib/i18n';
@@ -27,7 +26,8 @@ export default async function NewModelPage() {
         infraSurcharge={infraSurcharge}
         targetProfit={settings.target_profit_percent}
         forexRate={settings.forex_rate_rmb_per_usd}
-        action={createModelAction}
+        endpoint="/api/admin/models"
+        method="POST"
       />
     </>
   );

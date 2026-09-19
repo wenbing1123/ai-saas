@@ -25,7 +25,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { LocaleSwitcher } from '@/components/i18n/LocaleSwitcher';
-import { logoutAction } from '@/lib/server/actions/auth';
+import { apiPostJson } from '@/lib/client/api';
 import { hasPermission } from '@/lib/permissions';
 import { getDict, type Dictionary, type Locale } from '@/lib/i18n';
 import type { AuthUser } from '@/lib/types';
@@ -116,12 +116,19 @@ export function ConsoleShell({
           <div className="flex justify-end">
             <LocaleSwitcher current={locale} />
           </div>
-          <form action={logoutAction}>
-            <Button type="submit" variant="ghost" size="sm" className="w-full justify-start text-muted-foreground">
-              <LogOut className="mr-2 h-4 w-4" />
-              {t.common.nav.signOut}
-            </Button>
-          </form>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start text-muted-foreground"
+            onClick={async () => {
+              const res = await apiPostJson<{ redirect: string }>('/api/auth/logout');
+              window.location.assign(res.data?.redirect ?? '/login');
+            }}
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            {t.common.nav.signOut}
+          </Button>
         </div>
       </aside>
       <main className="min-w-0 flex-1">

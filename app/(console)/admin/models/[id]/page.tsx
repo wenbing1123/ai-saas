@@ -4,7 +4,6 @@ import { ModelForm } from '@/components/admin/ModelForm';
 import { requireAdmin } from '@/lib/server/auth';
 import { getModelById } from '@/lib/repositories/models';
 import { getSettings } from '@/lib/repositories/settings';
-import { updateModelAction } from '@/lib/server/actions/models';
 import { infraSurchargePer1m } from '@/lib/server/pricing';
 import { getLocale } from '@/lib/i18n/server';
 import { getDict } from '@/lib/i18n';
@@ -32,7 +31,8 @@ export default async function EditModelPage({ params }: { params: { id: string }
         infraSurcharge={infraSurcharge}
         targetProfit={settings.target_profit_percent}
         forexRate={settings.forex_rate_rmb_per_usd}
-        action={updateModelAction.bind(null, model.id)}
+        endpoint={`/api/admin/models/${model.id}`}
+        method="PUT"
       />
     </>
   );

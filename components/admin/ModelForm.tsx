@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { FormError } from '@/components/ui/form';
-import type { ActionResult } from '@/lib/validators';
+import { apiPostForm, apiPutForm } from '@/lib/client/api';
+import { type ApiResponse, fieldErrorsOf, initialApiResponse } from '@/lib/server/api-response';
 import type { Model } from '@/lib/types';
 import {
   recommendSellPrices,
@@ -21,7 +22,7 @@ import { cn } from '@/lib/utils';
 import { getDict, type Locale } from '@/lib/i18n';
 import { PROVIDER_LABELS, PROTOCOL_LABELS, CURRENCY_CODES, CURRENCY_LABELS, CURRENCY_SYMBOLS, Currency } from '@/lib/db/enums';
 
-type ModelAction = (_prev: ActionResult, formData: FormData) => Promise<ActionResult>;
+type ApiMethod = 'POST' | 'PUT';
 
 const PROVIDERS = ['deepseek', 'zhipu', 'doubao', 'alibaba', 'moonshot', 'openai', 'anthropic', 'google', 'azure', 'custom'];
 
@@ -70,7 +71,8 @@ export function ModelForm({
   infraSurcharge,
   targetProfit,
   forexRate,
-  action,
+  endpoint,
+  method = 'POST',
 }: {
   locale: Locale;
   mode: 'create' | 'edit';
@@ -81,13 +83,15 @@ export function ModelForm({
   targetProfit: number;
   /** RMB per USD exchange rate, used to express the infra surcharge in RMB. */
   forexRate: number;
-  action: ModelAction;
+  /** REST endpoint the form submits to. */
+  endpoint: string;
+  method?: ApiMethod;
 }) {
   const router = useRouter();
   const t = getDict(locale);
   const fm = t.admin.forms.model;
   const [pending, startTransition] = useTransition();
-  const [result, setResult] = useState<ActionResult>({ ok: false });
+  const [result, setResult] = useState<ApiResponse>(initialApiResponse());
   const [autoPrices, setAutoPrices] = useState(mode === 'create');
 
   const [f, setF] = useState<ModelFormState>(
@@ -144,7 +148,7 @@ export function ModelForm({
 
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setResult({ ok: false });
+    setResult(initialApiResponse());
     const fd = new FormData();
     const append = (k: string, v: string | number) => fd.set(k, String(v));
     append('provider', f.provider);
@@ -175,9 +179,12 @@ export function ModelForm({
     append('sortOrder', f.sortOrder);
 
     startTransition(async () => {
-      const res = await action({ ok: false }, fd);
+      const res =
+        method === 'PUT'
+          ? await apiPutForm(endpoint, fd)
+          : await apiPostForm(endpoint, fd);
       setResult(res);
-      if (res.ok) {
+      if (res.code === '0000') {
         if (mode === 'create') router.push('/admin/models');
         else router.refresh();
       }
@@ -198,23 +205,23 @@ export function ModelForm({
           </ul>
         </div>
       )}
-      {result.ok && mode === 'edit' && (
+      {result.code === '0000' && mode === 'edit' && (
         <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
           <CheckCircle2 className="h-4 w-4" /> {t.admin.forms.saved}
         </div>
       )}
-      <FormError message={result.error} />
+      <FormError message={result.msg} />
 
       <Section title={fm.identityRouting}>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Text label={fm.publicModelId} name="modelId" required value={f.modelId}
             onChange={(e) => set('modelId', e.target.value)}
-            error={result.fieldErrors?.modelId}
+            error={fieldErrorsOf(result)?.modelId}
             placeholder="claude-sonnet-4-20250514"
             hint={fm.publicModelIdHint} />
           <Text label={fm.displayName} name="displayName" required value={f.displayName}
             onChange={(e) => set('displayName', e.target.value)}
-            error={result.fieldErrors?.displayName} placeholder="Claude Sonnet 4" />
+            error={fieldErrorsOf(result)?.displayName} placeholder="Claude Sonnet 4" />
           <Select label={fm.provider} name="provider" value={f.provider} onChange={(e) => set('provider', e.target.value)} options={PROVIDERS} />
           <Select
             label={fm.gatewayProtocol}
@@ -232,12 +239,12 @@ export function ModelForm({
           />
           <Text label={fm.upstreamModel} name="upstreamModel" required value={f.upstreamModel}
             onChange={(e) => set('upstreamModel', e.target.value)}
-            error={result.fieldErrors?.upstreamModel}
+            error={fieldErrorsOf(result)?.upstreamModel}
             placeholder="claude-sonnet-4-20250514"
             hint={fm.upstreamModelHint} />
           <Text label={fm.baseUrlOverride} name="baseUrl" value={f.baseUrl ?? ''}
             onChange={(e) => set('baseUrl', e.target.value)}
-            error={result.fieldErrors?.baseUrl}
+            error={fieldErrorsOf(result)?.baseUrl}
             placeholder={fm.baseUrlPlaceholder} />
         </div>
       </Section>

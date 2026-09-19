@@ -3,7 +3,6 @@ import { PageHeader } from '@/components/console/StatCard';
 import { DocForm } from '@/components/admin/DocForm';
 import { requirePermission } from '@/lib/server/auth';
 import { getDocById } from '@/lib/repositories/docs';
-import { updateDocAction } from '@/lib/server/actions/docs';
 import { getLocale } from '@/lib/i18n/server';
 import { getDict } from '@/lib/i18n';
 
@@ -18,7 +17,7 @@ export default async function EditDocPage({ params }: { params: { id: string } }
   return (
     <>
       <PageHeader title={t.admin.docsCms.editTitle(doc.slug)} subtitle={doc.title} />
-      <DocForm locale={locale} mode="edit" doc={doc} action={updateDocAction.bind(null, doc.id)} />
+      <DocForm locale={locale} mode="edit" doc={doc} endpoint={`/api/admin/docs/${doc.id}`} method="PUT" />
     </>
   );
 }

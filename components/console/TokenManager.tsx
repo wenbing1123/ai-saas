@@ -1,16 +1,15 @@
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, Copy, Eye, Trash2, AlertTriangle } from 'lucide-react';
+import { Check, Copy, Eye, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FormError } from '@/components/ui/form';
-import { createTokenAction, revokeTokenAction } from '@/lib/server/actions/tokens';
-import type { ActionResult } from '@/lib/validators';
+import { apiPostForm, apiDelete } from '@/lib/client/api';
+import { type ApiResponse, fieldErrorsOf, initialApiResponse } from '@/lib/server/api-response';
 import { gatewayBaseUrl } from '@/config/app';
 import { formatRelativeTime } from '@/lib/utils';
 import { getDict, type Locale } from '@/lib/i18n';
@@ -18,14 +17,25 @@ import type { ApiToken } from '@/lib/types';
 import { TokenStatus } from '@/lib/db/enums';
 
 type Dict = ReturnType<typeof getDict>;
-type CreatedState = ActionResult<{ secret: string; prefix: string; name: string }>;
-const initial: CreatedState = { ok: false };
+type CreatedToken = { secret: string; prefix: string; name: string };
 
 export function TokenManager({ tokens, locale }: { tokens: ApiToken[]; locale: Locale }) {
   const d = getDict(locale);
   const t = d.console.tokens;
-  const [state, formAction] = useFormState(createTokenAction, initial);
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [state, setState] = useState<ApiResponse<CreatedToken>>(initialApiResponse<CreatedToken>());
   const [copied, setCopied] = useState(false);
+  const fieldErrors = fieldErrorsOf(state);
+
+  function create(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    startTransition(async () => {
+      const res = await apiPostForm<CreatedToken>('/api/tokens', new FormData(e.currentTarget));
+      setState(res);
+      if (res.code === '0000') router.refresh();
+    });
+  }
 
   async function copyKey() {
     if (!state.data?.secret) return;
@@ -41,14 +51,17 @@ export function TokenManager({ tokens, locale }: { tokens: ApiToken[]; locale: L
           <CardTitle className="text-base">{t.createTitle}</CardTitle>
         </CardHeader>
         <CardContent>
-          <form action={formAction} className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <Field label={t.keyName} htmlFor="name" error={state.fieldErrors?.name} className="flex-1">
+          <form onSubmit={create} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <Field label={t.keyName} htmlFor="name" error={fieldErrors?.name} className="flex-1">
               <Input id="name" name="name" placeholder={t.keyNamePlaceholder} maxLength={100} required />
             </Field>
-            <SubmitButton>{t.generate}</SubmitButton>
+            <Button type="submit" disabled={pending}>
+              {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t.generate}
+            </Button>
           </form>
 
-          {state.ok && state.data && (
+          {state.code === '0000' && state.data && (
             <div className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4">
               <div className="flex items-center gap-2 text-sm font-medium text-emerald-700 dark:text-emerald-300">
                 <Eye className="h-4 w-4" />
@@ -69,7 +82,7 @@ export function TokenManager({ tokens, locale }: { tokens: ApiToken[]; locale: L
               </div>
             </div>
           )}
-          <FormError message={state.error} />
+          <FormError message={state.msg} />
         </CardContent>
       </Card>
 
@@ -90,7 +103,7 @@ export function TokenManager({ tokens, locale }: { tokens: ApiToken[]; locale: L
                     <th className="py-2 pr-4 text-right font-medium">{t.colRequests}</th>
                     <th className="py-2 pr-4 font-medium">{t.colLastUsed}</th>
                     <th className="py-2 pr-4 font-medium">{d.common.misc.createdAt}</th>
-                    <th className="py-2 text-right font-medium">{d.common.misc.status}</th>
+                    <th className="py-2 pr-4 text-right font-medium">{d.common.misc.status}</th>
                     <th className="py-2" />
                   </tr>
                 </thead>
@@ -116,8 +129,8 @@ function TokenRow({ token, d }: { token: ApiToken; d: Dict }) {
 
   function revoke() {
     startTransition(async () => {
-      await revokeTokenAction(token.id);
-      router.refresh();
+      const res = await apiDelete(`/api/tokens/${token.id}`);
+      if (res.code === '0000') router.refresh();
     });
   }
 
@@ -153,14 +166,5 @@ function TokenRow({ token, d }: { token: ApiToken; d: Dict }) {
           ))}
       </td>
     </tr>
-  );
-}
-
-function SubmitButton({ children }: { children: React.ReactNode }) {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" disabled={pending}>
-      {children}
-    </Button>
   );
 }

@@ -8,15 +8,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { FormError } from '@/components/ui/form';
-import type { ActionResult } from '@/lib/validators';
+import { apiPostForm, apiPutForm } from '@/lib/client/api';
+import { type ApiResponse, fieldErrorsOf, initialApiResponse } from '@/lib/server/api-response';
 import type { DocPageRow } from '@/lib/db/schema';
 import { renderMarkdown } from '@/lib/server/markdown';
 import { gatewayBaseUrl } from '@/config/app';
 import { DOC_LOCALE_LABELS } from '@/lib/db/enums';
 import { cn } from '@/lib/utils';
 import { getDict, type Locale } from '@/lib/i18n';
-
-type DocAction = (_prev: ActionResult, formData: FormData) => Promise<ActionResult>;
 
 interface DocFormState {
   slug: string;
@@ -42,18 +41,20 @@ export function DocForm({
   locale,
   mode,
   doc,
-  action,
+  endpoint,
+  method = 'POST',
 }: {
   locale: Locale;
   mode: 'create' | 'edit';
   doc?: DocPageRow;
-  action: DocAction;
+  endpoint: string;
+  method?: 'POST' | 'PUT';
 }) {
   const router = useRouter();
   const t = getDict(locale);
   const cms = t.admin.docsCms;
   const [pending, startTransition] = useTransition();
-  const [result, setResult] = useState<ActionResult>({ ok: false });
+  const [result, setResult] = useState<ApiResponse>(initialApiResponse());
   const [tab, setTab] = useState<'write' | 'preview'>('write');
   const [f, setF] = useState<DocFormState>(
     doc
@@ -73,7 +74,7 @@ export function DocForm({
 
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setResult({ ok: false });
+    setResult(initialApiResponse());
     const fd = new FormData();
     fd.set('slug', f.slug);
     fd.set('locale', f.locale);
@@ -84,9 +85,12 @@ export function DocForm({
     if (f.enabled) fd.set('enabled', 'on');
 
     startTransition(async () => {
-      const res = await action({ ok: false }, fd);
+      const res =
+        method === 'PUT'
+          ? await apiPutForm(endpoint, fd)
+          : await apiPostForm(endpoint, fd);
       setResult(res);
-      if (res.ok) {
+      if (res.code === '0000') {
         if (mode === 'create') router.push('/admin/docs');
         else router.refresh();
       }
@@ -95,22 +99,22 @@ export function DocForm({
 
   return (
     <form onSubmit={submit} className="space-y-6">
-      {result.ok && mode === 'edit' && (
+      {result.code === '0000' && mode === 'edit' && (
         <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
           <CheckCircle2 className="h-4 w-4" /> {cms.saved}
         </div>
       )}
-      <FormError message={result.error} />
+      <FormError message={result.msg} />
 
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-semibold">{cms.table.title}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label={cms.form.slug} hint={cms.form.slugHint} error={result.fieldErrors?.slug}>
+          <Field label={cms.form.slug} hint={cms.form.slugHint} error={fieldErrorsOf(result)?.slug}>
             <Input value={f.slug} onChange={(e) => setF({ ...f, slug: e.target.value })} placeholder="claude-code" required />
           </Field>
-          <Field label={cms.form.locale} error={result.fieldErrors?.locale}>
+          <Field label={cms.form.locale} error={fieldErrorsOf(result)?.locale}>
             <select
               value={f.locale}
               onChange={(e) => setF({ ...f, locale: e.target.value as 'en' | 'zh' })}
@@ -120,13 +124,13 @@ export function DocForm({
               <option value="zh">中文</option>
             </select>
           </Field>
-          <Field label={cms.form.title} error={result.fieldErrors?.title}>
+          <Field label={cms.form.title} error={fieldErrorsOf(result)?.title}>
             <Input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} required />
           </Field>
-          <Field label={cms.form.category} hint={cms.form.categoryHint} error={result.fieldErrors?.category}>
+          <Field label={cms.form.category} hint={cms.form.categoryHint} error={fieldErrorsOf(result)?.category}>
             <Input value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })} required />
           </Field>
-          <Field label={cms.form.sort} error={result.fieldErrors?.sortOrder}>
+          <Field label={cms.form.sort} error={fieldErrorsOf(result)?.sortOrder}>
             <Input type="number" value={f.sortOrder} onChange={(e) => setF({ ...f, sortOrder: Number(e.target.value) })} />
           </Field>
           <div className="flex items-end pb-2">
@@ -170,7 +174,7 @@ export function DocForm({
           </div>
         </CardHeader>
         <CardContent>
-          {result.fieldErrors?.content && <p className="mb-2 text-xs text-destructive">{result.fieldErrors.content}</p>}
+          {fieldErrorsOf(result)?.content && <p className="mb-2 text-xs text-destructive">{fieldErrorsOf(result)?.content}</p>}
           <p className="mb-2 text-xs text-muted-foreground">{cms.form.contentHint}</p>
           {tab === 'write' ? (
             <textarea

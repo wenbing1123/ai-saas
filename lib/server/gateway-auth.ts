@@ -1,4 +1,5 @@
 import { getRedis, prefixedKey, cache } from '@/lib/redis/client';
+import { logger } from '@/lib/server/logger';
 import { redisKeys, redisTtl } from '@/lib/redis/keys';
 import { findTokenByHash } from '@/lib/repositories/tokens';
 import { getUserById } from '@/lib/repositories/users';
@@ -85,7 +86,7 @@ export async function authenticateApiKey(secret: string): Promise<AuthenticatedC
       token: { id: identity.tokenId, name: identity.tokenName, status: identity.tokenStatus },
     };
   } catch (err) {
-    console.error('[gateway-auth]', err);
+    logger.error({ err }, '[gateway-auth] api key auth failed');
     return { error: 'server_error', message: 'Authentication failed due to a server error.' };
   }
 }
