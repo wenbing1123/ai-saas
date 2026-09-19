@@ -15,6 +15,8 @@ export async function createToken(
   name: string,
   secret: string,
   keyHash: string,
+  /** AES-256-GCM encrypted secret; null when ENCRYPTION_KEY is unset. */
+  secretEncrypted: string | null = null,
 ): Promise<CreatedApiToken> {
   const db = getDb();
   const rows = await db
@@ -24,6 +26,7 @@ export async function createToken(
       name,
       keyHash,
       prefix: `${secret.slice(0, 14)}…`,
+      secretEncrypted,
     })
     .returning();
   return { ...mapApiToken(rows[0]), secret };
@@ -60,6 +63,22 @@ export async function revokeToken(userId: string, tokenId: string): Promise<bool
     )
     .returning({ id: apiTokens.id });
   return rows.length > 0;
+}
+
+/** Owned token's encrypted secret (for re-view). Null when token missing. */
+export async function getOwnedTokenSecret(
+  userId: string,
+  tokenId: string,
+): Promise<string | null> {
+  const db = getDb();
+  const rows = await db
+    .select({ secretEncrypted: apiTokens.secretEncrypted })
+    .from(apiTokens)
+    .where(
+      sql`${apiTokens.id} = ${tokenId}::uuid AND ${apiTokens.userId} = ${userId}::uuid AND ${apiTokens.deleted} = 0`,
+    )
+    .limit(1);
+  return rows[0]?.secretEncrypted ?? null;
 }
 
 export async function touchTokenUsage(tokenId: string, ip: string | null) {

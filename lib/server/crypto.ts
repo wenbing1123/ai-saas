@@ -1,4 +1,11 @@
-import { randomBytes, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
+import {
+  randomBytes,
+  scryptSync,
+  timingSafeEqual,
+  createHash,
+  createCipheriv,
+  createDecipheriv,
+} from 'node:crypto';
 
 /**
  * Self-contained crypto helpers (Node runtime only).
@@ -49,4 +56,45 @@ export function safeEqual(a: string, b: string): boolean {
   const bufB = Buffer.from(b);
   if (bufA.length !== bufB.length) return false;
   return timingSafeEqual(bufA, bufB);
+}
+
+// ---------------------------------------------------------------------------
+// Application-key encryption (AES-256-GCM) — e.g. re-viewable API keys.
+// Key source: ENCRYPTION_KEY env, 64 hex chars (32 bytes). When unset the
+// helpers return null and callers must degrade gracefully.
+// Payload format: hex(iv).hex(authTag).hex(ciphertext)
+// ---------------------------------------------------------------------------
+
+function appKey(): Buffer | null {
+  const hex = process.env.ENCRYPTION_KEY;
+  if (!hex || !/^[0-9a-fA-F]{64}$/.test(hex)) return null;
+  return Buffer.from(hex, 'hex');
+}
+
+/** Encrypt `plaintext`; null when ENCRYPTION_KEY is not configured. */
+export function encryptWithAppKey(plaintext: string): string | null {
+  const key = appKey();
+  if (!key) return null;
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+  return `${iv.toString('hex')}.${cipher.getAuthTag().toString('hex')}.${ciphertext.toString('hex')}`;
+}
+
+/** Decrypt a payload produced by `encryptWithAppKey`; null on any failure. */
+export function decryptWithAppKey(payload: string): string | null {
+  const key = appKey();
+  if (!key) return null;
+  const [ivHex, tagHex, dataHex] = payload.split('.');
+  if (!ivHex || !tagHex || !dataHex) return null;
+  try {
+    const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(ivHex, 'hex'));
+    decipher.setAuthTag(Buffer.from(tagHex, 'hex'));
+    return Buffer.concat([
+      decipher.update(Buffer.from(dataHex, 'hex')),
+      decipher.final(),
+    ]).toString('utf8');
+  } catch {
+    return null;
+  }
 }

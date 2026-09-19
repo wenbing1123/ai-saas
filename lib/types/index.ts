@@ -98,9 +98,12 @@ export interface AuthUser extends User {
 export interface Model {
   id: string;
   provider: Provider;
-  protocol: Protocol;
+  /** Bitmask of supported wire protocols: 1 = OpenAI, 2 = Anthropic, 3 = both. */
+  protocols: number;
   modelId: string;
   upstreamModel: string;
+  /** Optional per-model upstream API key (admin-only; falls back to provider key). */
+  upstreamApiKey: string | null;
   baseUrl: string | null;
   displayName: string;
   contextWindow: number;

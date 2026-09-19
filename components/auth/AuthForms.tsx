@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Sparkles, Gift, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Field, FormError } from '@/components/ui/form';
+import { Field } from '@/components/ui/form';
+import { toast } from '@/components/ui/toast';
 import { apiPostForm } from '@/lib/client/api';
 import { type ApiResponse, fieldErrorsOf, initialApiResponse } from '@/lib/server/api-response';
 import { getDict } from '@/lib/i18n';
@@ -40,9 +41,14 @@ export function LoginForm({ locale, oauthProviders = [], oauthError }: { locale:
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<ApiResponse>(initialApiResponse());
-  const oauthErrorText = oauthError
-    ? t.oauthErrors[oauthError as keyof typeof t.oauthErrors] ?? t.oauthErrors.sign_in_failed
-    : null;
+  const [unverified, setUnverified] = useState(false);
+
+  useEffect(() => {
+    if (oauthError) {
+      toast.error(t.oauthErrors[oauthError as keyof typeof t.oauthErrors] ?? t.oauthErrors.sign_in_failed);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [oauthError]);
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -52,6 +58,9 @@ export function LoginForm({ locale, oauthProviders = [], oauthError }: { locale:
       if (res.code === '0000' && res.data?.redirect) {
         // Full navigation so server layouts/session are re-evaluated.
         window.location.assign(res.data.redirect);
+      } else {
+        setUnverified(res.msg === t.unverified);
+        toast.error(res.msg);
       }
     });
   }
@@ -70,11 +79,10 @@ export function LoginForm({ locale, oauthProviders = [], oauthError }: { locale:
       }
     >
       <form onSubmit={onSubmit} className="space-y-4">
-        <FormError message={state.msg || oauthErrorText || undefined} />
-        {state.msg === t.unverified && (
+        {unverified && (
           <Link
             href="/register/verify"
-            className="-mt-2 block text-right text-xs font-medium underline underline-offset-4"
+            className="block text-right text-xs font-medium underline underline-offset-4"
           >
             {getDict(locale).marketing.accountEmail.verify.resend}
           </Link>
@@ -133,6 +141,8 @@ export function RegisterForm({ locale }: { locale: Locale }) {
       setState(res);
       if (res.code === '0000' && res.data?.email) {
         router.push(`/register/verify?email=${encodeURIComponent(res.data.email)}`);
+      } else {
+        toast.error(res.msg);
       }
     });
   }
@@ -155,7 +165,6 @@ export function RegisterForm({ locale }: { locale: Locale }) {
         <span>{t.bonus}</span>
       </div>
       <form onSubmit={onSubmit} className="space-y-4">
-        <FormError message={state.msg} />
         <Field label={t.name} htmlFor="name" error={fieldErrorsOf(state)?.name}>
           <Input id="name" name="name" placeholder="Ada Lovelace" autoComplete="name" required />
         </Field>

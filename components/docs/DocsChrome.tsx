@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { PublicHeader } from '@/components/site/PublicChrome';
 import { SiteFooter } from '@/components/site/SiteFooter';
+import { DocsCodeCopy } from '@/components/docs/DocsCodeCopy';
 import { cn } from '@/lib/utils';
 import type { DocPageRow } from '@/lib/db/schema';
 
@@ -29,6 +30,7 @@ export function DocsChrome({
   activeSlug,
   html,
   navLabel,
+  locale,
   prev,
   next,
 }: {
@@ -36,6 +38,7 @@ export function DocsChrome({
   activeSlug: string;
   html: string;
   navLabel: string;
+  locale: 'en' | 'zh';
   prev?: DocPageRow | null;
   next?: DocPageRow | null;
 }) {
@@ -79,7 +82,7 @@ export function DocsChrome({
         </aside>
 
         <article className="min-w-0 max-w-3xl pb-16">
-          <div className="docs-body" dangerouslySetInnerHTML={{ __html: html }} />
+          <DocsCodeCopy html={html} locale={locale} />
           {(prev || next) && (
             <div className="mt-12 grid gap-3 border-t pt-6 sm:grid-cols-2">
               {prev ? (

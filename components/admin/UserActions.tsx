@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Ban, RotateCcw, ShieldCheck, User as UserIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toast } from '@/components/ui/toast';
 import { apiPostJson } from '@/lib/client/api';
 import { UserStatus } from '@/lib/db/enums';
 import { getDict, type Locale } from '@/lib/i18n';
@@ -22,20 +23,19 @@ export function UserActions({
   const router = useRouter();
   const t = getDict(locale);
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
   const isAdmin = roles.includes('admin');
 
   function run(fn: () => Promise<{ code: string; msg: string }>) {
-    setError(null);
     startTransition(async () => {
       const res = await fn();
-      if (res.code !== '0000') setError(res.msg || t.admin.users.actions.failed);
+      if (res.code !== '0000') toast.error(res.msg || t.admin.users.actions.failed);
+      else toast.success(res.msg);
       router.refresh();
     });
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className="flex items-center gap-2">
       <div className="flex gap-2">
         {status === UserStatus.Active ? (
           <Button type="button" size="sm" variant="outline" disabled={pending}
@@ -62,7 +62,6 @@ export function UserActions({
           </Button>
         )}
       </div>
-      {error && <span className="text-xs text-destructive">{error}</span>}
     </div>
   );
 }

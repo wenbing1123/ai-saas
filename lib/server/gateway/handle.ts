@@ -24,6 +24,7 @@ import {
   UsageStatus,
   PROVIDER_LABELS,
   PROTOCOL_LABELS,
+  supportsProtocol,
 } from '@/lib/db/enums';
 import type { TokenUsage } from '@/lib/server/pricing';
 
@@ -315,13 +316,14 @@ async function resolveCall(req: Request, protocol: Protocol): Promise<
 
   const publicModelId = typeof body.model === 'string' ? body.model : '';
   const catalog = await getEnabledCatalog();
-  const model = catalog.find((m) => m.modelId === publicModelId && m.protocol === protocol);
+  const model = catalog.find((m) => m.modelId === publicModelId && supportsProtocol(m.protocols, protocol));
   if (!model) {
     const known = (await getModelByPublicId(publicModelId)) ?? null;
-    if (known && known.protocol !== protocol) {
+    if (known && !supportsProtocol(known.protocols, protocol)) {
+      const other = protocol === Protocol.OpenAI ? Protocol.Anthropic : Protocol.OpenAI;
       return {
         ok: false,
-        response: gatewayError(protocol, 400, 'invalid_request_error', `Model "${publicModelId}" is not available on this endpoint. Use the ${PROTOCOL_LABELS[known.protocol]} endpoint.`, requestId),
+        response: gatewayError(protocol, 400, 'invalid_request_error', `Model "${publicModelId}" is not available on this endpoint. Use the ${PROTOCOL_LABELS[other]} endpoint.`, requestId),
         meta: { userId: auth.user.id, tokenId: auth.token.id, modelId: publicModelId, provider: Provider.Custom },
       };
     }
@@ -480,7 +482,7 @@ export async function handleChatCompletions(req: Request): Promise<Response> {
 
   const { call } = resolved;
   const { model, body } = call;
-  const upstream = await resolveUpstream(model.provider, model.baseUrl);
+  const upstream = await resolveUpstream(model.provider, model.baseUrl, model.upstreamApiKey);
   if (!upstream.apiKey) {
     await releaseConcurrency(call.userId, call.hasPriority);
     return gatewayError(Protocol.OpenAI, 503, 'api_error', `Upstream credentials for provider "${PROVIDER_LABELS[model.provider]}" are not configured.`, call.requestId);
@@ -570,7 +572,7 @@ export async function handleMessages(req: Request): Promise<Response> {
 
   const { call } = resolved;
   const { model, body } = call;
-  const upstream = await resolveUpstream(model.provider, model.baseUrl);
+  const upstream = await resolveUpstream(model.provider, model.baseUrl, model.upstreamApiKey);
   if (!upstream.apiKey) {
     await releaseConcurrency(call.userId, call.hasPriority);
     return gatewayError(Protocol.Anthropic, 503, 'api_error', `Upstream credentials for provider "${PROVIDER_LABELS[model.provider]}" are not configured.`, call.requestId);

@@ -2,7 +2,7 @@ import { revalidatePath } from 'next/cache';
 import type { z } from 'zod';
 import { withApi, ok } from '@/lib/server/wrappers';
 import { tokenNameSchema } from '@/lib/validators';
-import { generateApiKey, sha256 } from '@/lib/server/crypto';
+import { generateApiKey, sha256, encryptWithAppKey } from '@/lib/server/crypto';
 import { createToken, listTokens } from '@/lib/repositories/tokens';
 
 /** GET /api/tokens — list the current user's API tokens. */
@@ -16,7 +16,13 @@ export const POST = withApi(
   async ({ user, input }) => {
     const data = input as z.infer<typeof tokenNameSchema>;
     const secret = generateApiKey();
-    const created = await createToken(user!.id, data.name, secret, sha256(secret));
+    const created = await createToken(
+      user!.id,
+      data.name,
+      secret,
+      sha256(secret),
+      encryptWithAppKey(secret),
+    );
     revalidatePath('/dashboard/tokens');
     return ok({ secret, prefix: created.prefix, name: created.name });
   },

@@ -3,8 +3,8 @@
  *
  * Credentials live exclusively in the platform settings (DB, Redis-cached)
  * and are edited from /admin/settings — no env-var fallback. Per-model
- * baseUrl in the Models panel still overrides the default (useful for
- * Azure / resellers / self-hosted).
+ * baseUrl / upstreamApiKey in the Models panel override the provider
+ * defaults (useful for Azure / resellers / self-hosted / per-model keys).
  */
 
 import { Provider, PROVIDER_LABELS } from '@/lib/db/enums';
@@ -29,7 +29,12 @@ const DEFAULT_BASE_URL: Record<string, string> = {
   alibaba: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
 };
 
-export async function resolveUpstream(provider: Provider, modelBaseUrl: string | null): Promise<UpstreamProvider> {
+export async function resolveUpstream(
+  provider: Provider,
+  modelBaseUrl: string | null,
+  /** Optional per-model key — overrides the provider-wide key from settings. */
+  modelApiKey?: string | null,
+): Promise<UpstreamProvider> {
   const label = PROVIDER_LABELS[provider] ?? 'custom';
   const settings = await getSettings();
   const stored = settings.upstream_providers?.[label];
@@ -42,8 +47,8 @@ export async function resolveUpstream(provider: Provider, modelBaseUrl: string |
     ''
   ).replace(/\/+$/, '');
 
-  // API key comes only from the DB (admin panel).
-  const apiKey = stored?.api_key || '';
+  // Per-model key > provider key from the DB (admin panel).
+  const apiKey = modelApiKey || stored?.api_key || '';
 
   return { baseUrl, apiKey };
 }

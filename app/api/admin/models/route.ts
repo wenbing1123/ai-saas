@@ -5,6 +5,7 @@ import { createModel, getModelByPublicId } from '@/lib/repositories/models';
 import { getSettings } from '@/lib/repositories/settings';
 import {
   validatePricing,
+  formatViolationMessage,
   costSetOf,
   sellSetOf,
   addSurcharge,
@@ -33,7 +34,7 @@ export const POST = withApi(
       sellSetOf(write),
       settings.target_profit_percent,
     );
-    if (violations.length) throw businessRule(violations.map((v) => v.message).join(' '));
+    if (violations.length) throw businessRule(violations.map(formatViolationMessage).join(' '));
 
     if (await getModelByPublicId(write.modelId)) {
       throw conflict('This model ID already exists.', {

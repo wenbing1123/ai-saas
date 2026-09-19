@@ -2,13 +2,13 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { FormError } from '@/components/ui/form';
+import { toast } from '@/components/ui/toast';
 import { apiPostForm, apiPutForm } from '@/lib/client/api';
 import { type ApiResponse, fieldErrorsOf, initialApiResponse } from '@/lib/server/api-response';
 import type { Plan } from '@/lib/types';
@@ -116,20 +116,17 @@ export function PlanForm({
           : await apiPostForm(endpoint, fd);
       setResult(res);
       if (res.code === '0000') {
+        toast.success(t.admin.forms.saved);
         if (mode === 'create') router.push('/admin/plans');
         else router.refresh();
+      } else {
+        toast.error(res.msg);
       }
     });
   }
 
   return (
     <form onSubmit={submit} className="space-y-6">
-      {result.msg && <FormError message={result.msg} />}
-      {result.code === '0000' && mode === 'edit' && (
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
-          <CheckCircle2 className="h-4 w-4" /> {t.admin.forms.saved}
-        </div>
-      )}
 
       <Section title={fp.basics}>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

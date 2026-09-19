@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toast } from '@/components/ui/toast';
 import { apiPostJson } from '@/lib/client/api';
 import { formatUsd } from '@/lib/server/pricing';
 import { getDict, type Locale } from '@/lib/i18n';
@@ -15,10 +16,8 @@ export function PurchaseButton({ plan, variant, locale }: { plan: Plan; variant?
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [purchasedNo, setPurchasedNo] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   function buy() {
-    setError(null);
     startTransition(async () => {
       const result = await apiPostJson<{ orderNo: string; redirectUrl: string }>(
         '/api/orders/purchase',
@@ -32,9 +31,10 @@ export function PurchaseButton({ plan, variant, locale }: { plan: Plan; variant?
         }
         // Sandbox/manual: paid instantly.
         setPurchasedNo(result.data.orderNo);
+        toast.success(result.msg);
         router.refresh();
       } else {
-        setError(result.msg || t.paymentFailed);
+        toast.error(result.msg || t.paymentFailed);
       }
     });
   }
@@ -49,12 +49,9 @@ export function PurchaseButton({ plan, variant, locale }: { plan: Plan; variant?
   }
 
   return (
-    <div className="w-full">
-      <Button variant={variant ?? 'default'} disabled={pending} onClick={buy} className="w-full">
-        {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        {t.buyFor.replace('{amount}', formatUsd(plan.priceCents))}
-      </Button>
-      {error && <p className="mt-1.5 text-xs text-destructive">{error}</p>}
-    </div>
+    <Button variant={variant ?? 'default'} disabled={pending} onClick={buy} className="w-full">
+      {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+      {t.buyFor.replace('{amount}', formatUsd(plan.priceCents))}
+    </Button>
   );
 }

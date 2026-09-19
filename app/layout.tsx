@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { getLocale } from '@/lib/i18n/server';
+import { Toaster } from '@/components/ui/toast';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -25,7 +26,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const locale = getLocale();
   return (
     <html lang={locale} suppressHydrationWarning>
-      <body className="min-h-screen bg-background font-sans antialiased">{children}</body>
+      <body className="min-h-screen bg-background font-sans antialiased">
+        {children}
+        <Toaster />
+      </body>
     </html>
   );
 }

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Loader2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FormError, FormSuccess } from '@/components/ui/form';
+import { toast } from '@/components/ui/toast';
 import { apiPutForm } from '@/lib/client/api';
 import { type ApiResponse, initialApiResponse } from '@/lib/server/api-response';
 import type { Permission, RoleWithPermissions } from '@/lib/types';
@@ -46,7 +46,12 @@ export function RolePermissionsForm({
     startTransition(async () => {
       const res = await apiPutForm(`/api/admin/roles/${role.id}/permissions`, new FormData(form));
       setResult(res);
-      if (res.code === '0000') router.refresh();
+      if (res.code === '0000') {
+        toast.success(t.admin.roles.updated);
+        router.refresh();
+      } else {
+        toast.error(res.msg);
+      }
     });
   }
 
@@ -94,8 +99,6 @@ export function RolePermissionsForm({
           {t.admin.roles.lockedNote}
         </p>
       )}
-      <FormError message={result.msg} />
-      {result.code === '0000' && <FormSuccess message={t.admin.roles.updated} />}
       {canManage && !locked && (
         <Button type="button" size="sm" disabled={pending} onClick={submit}>
           {pending ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Save className="mr-1 h-3 w-3" />}

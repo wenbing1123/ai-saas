@@ -2,13 +2,13 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
+import { AlertTriangle, Check as CheckIcon, Copy, Eye, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { FormError } from '@/components/ui/form';
-import { apiPostForm, apiPutForm } from '@/lib/client/api';
+import { toast } from '@/components/ui/toast';
+import { apiPostForm, apiPostJson, apiPutForm } from '@/lib/client/api';
 import { type ApiResponse, fieldErrorsOf, initialApiResponse } from '@/lib/server/api-response';
 import type { Model } from '@/lib/types';
 import {
@@ -20,29 +20,40 @@ import {
 } from '@/lib/server/pricing';
 import { cn } from '@/lib/utils';
 import { getDict, type Locale } from '@/lib/i18n';
-import { PROVIDER_LABELS, PROTOCOL_LABELS, CURRENCY_CODES, CURRENCY_LABELS, CURRENCY_SYMBOLS, Currency } from '@/lib/db/enums';
+import { PROVIDER_LABELS, Protocol, supportsProtocol, CURRENCY_CODES, CURRENCY_LABELS, CURRENCY_SYMBOLS, Currency } from '@/lib/db/enums';
 
 type ApiMethod = 'POST' | 'PUT';
 
 const PROVIDERS = ['deepseek', 'zhipu', 'doubao', 'alibaba', 'moonshot', 'openai', 'anthropic', 'google', 'azure', 'custom'];
 
 /** Form state keeps wire labels (strings); the repository maps them to enum codes. */
-type ModelFormState = Omit<Model, 'provider' | 'protocol' | 'costCurrency'> & {
+type ModelFormState = Omit<Model, 'provider' | 'protocols' | 'costCurrency' | 'upstreamApiKey' | 'contextWindow'> & {
   provider: string;
-  protocol: 'openai' | 'anthropic';
+  protocolOpenai: boolean;
+  protocolAnthropic: boolean;
   costCurrency: string;
+  upstreamApiKey: string;
+  /** Context window entered in millions of tokens (0.128 = 128K). */
+  contextWindowM: number;
 };
+
+/** Compact price display: up to 4 decimals, trailing zeros trimmed (11.6560 → 11.656). */
+function fmtNum(v: number): string {
+  return String(Number(v.toFixed(4)));
+}
 
 const initialForm: ModelFormState = {
   id: '',
   provider: 'deepseek',
-  protocol: 'openai',
+  protocolOpenai: true,
+  protocolAnthropic: false,
   costCurrency: 'rmb',
   modelId: '',
   upstreamModel: '',
+  upstreamApiKey: '',
   baseUrl: '',
   displayName: '',
-  contextWindow: 128_000,
+  contextWindowM: 0.128,
   maxOutputTokens: 4096,
   supportsVision: false,
   supportsTools: true,
@@ -93,14 +104,20 @@ export function ModelForm({
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<ApiResponse>(initialApiResponse());
   const [autoPrices, setAutoPrices] = useState(mode === 'create');
+  const [revealOpen, setRevealOpen] = useState(false);
+  // The secret is never echoed into form state; edit keeps it unless re-entered.
+  const hasUpstreamKey = !!model?.upstreamApiKey;
 
   const [f, setF] = useState<ModelFormState>(
     model
       ? {
           ...model,
           provider: PROVIDER_LABELS[model.provider],
-          protocol: PROTOCOL_LABELS[model.protocol] as ModelFormState['protocol'],
+          protocolOpenai: supportsProtocol(model.protocols, Protocol.OpenAI),
+          protocolAnthropic: supportsProtocol(model.protocols, Protocol.Anthropic),
           costCurrency: CURRENCY_LABELS[model.costCurrency].toLowerCase(),
+          upstreamApiKey: '',
+          contextWindowM: model.contextWindow / 1_000_000,
         }
       : { ...initialForm, markupPercent: targetProfit },
   );
@@ -152,13 +169,15 @@ export function ModelForm({
     const fd = new FormData();
     const append = (k: string, v: string | number) => fd.set(k, String(v));
     append('provider', f.provider);
-    append('protocol', f.protocol);
+    if (f.protocolOpenai) fd.set('protocolOpenai', 'on');
+    if (f.protocolAnthropic) fd.set('protocolAnthropic', 'on');
     append('costCurrency', f.costCurrency);
     append('modelId', f.modelId);
     append('upstreamModel', f.upstreamModel);
+    append('upstreamApiKey', f.upstreamApiKey);
     if (f.baseUrl) fd.set('baseUrl', f.baseUrl);
     append('displayName', f.displayName);
-    append('contextWindow', f.contextWindow);
+    append('contextWindow', Math.round(f.contextWindowM * 1_000_000));
     append('maxOutputTokens', f.maxOutputTokens);
     if (f.supportsVision) fd.set('supportsVision', 'on');
     if (f.supportsTools) fd.set('supportsTools', 'on');
@@ -185,13 +204,17 @@ export function ModelForm({
           : await apiPostForm(endpoint, fd);
       setResult(res);
       if (res.code === '0000') {
+        toast.success(t.admin.forms.saved);
         if (mode === 'create') router.push('/admin/models');
         else router.refresh();
+      } else {
+        toast.error(res.msg);
       }
     });
   }
 
   return (
+    <>
     <form onSubmit={submit} className="space-y-6">
       {violations.length > 0 && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4">
@@ -200,17 +223,15 @@ export function ModelForm({
           </div>
           <ul className="mt-2 list-disc space-y-1 pl-6 text-sm text-destructive">
             {violations.map((v) => (
-              <li key={v.field}>{v.message}</li>
+              <li key={`${v.field}-${v.code}`}>
+                {v.code === 'below_cost'
+                  ? fm.violationBelowCost(fm[v.field], sym, fmtNum(v.sell), fmtNum(v.cost))
+                  : fm.violationBelowMargin(fm[v.field], sym, v.minMarkupPercent, fmtNum(v.floor))}
+              </li>
             ))}
           </ul>
         </div>
       )}
-      {result.code === '0000' && mode === 'edit' && (
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
-          <CheckCircle2 className="h-4 w-4" /> {t.admin.forms.saved}
-        </div>
-      )}
-      <FormError message={result.msg} />
 
       <Section title={fm.identityRouting}>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -223,13 +244,28 @@ export function ModelForm({
             onChange={(e) => set('displayName', e.target.value)}
             error={fieldErrorsOf(result)?.displayName} placeholder="Claude Sonnet 4" />
           <Select label={fm.provider} name="provider" value={f.provider} onChange={(e) => set('provider', e.target.value)} options={PROVIDERS} />
-          <Select
-            label={fm.gatewayProtocol}
-            name="protocol"
-            value={f.protocol}
-            onChange={(e) => set('protocol', e.target.value as ModelFormState['protocol'])}
-            options={['openai', 'anthropic']}
-          />
+          <FieldShell label={fm.protocols} hint={fm.protocolsHint} error={fieldErrorsOf(result)?.protocols}>
+            <div className="flex items-center gap-6 pb-2 pt-1">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-input"
+                  checked={f.protocolOpenai}
+                  onChange={(e) => set('protocolOpenai', e.target.checked)}
+                />
+                openai
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-input"
+                  checked={f.protocolAnthropic}
+                  onChange={(e) => set('protocolAnthropic', e.target.checked)}
+                />
+                anthropic
+              </label>
+            </div>
+          </FieldShell>
           <Select
             label={fm.costCurrency}
             name="costCurrency"
@@ -242,6 +278,19 @@ export function ModelForm({
             error={fieldErrorsOf(result)?.upstreamModel}
             placeholder="claude-sonnet-4-20250514"
             hint={fm.upstreamModelHint} />
+          <div className="flex items-start gap-2">
+            <div className="flex-1">
+              <Text label={fm.upstreamApiKey} name="upstreamApiKey" value={f.upstreamApiKey}
+                onChange={(e) => set('upstreamApiKey', e.target.value)}
+                placeholder={mode === 'edit' && hasUpstreamKey ? fm.upstreamKeyConfigured : 'sk-…'}
+                hint={mode === 'edit' && hasUpstreamKey ? fm.upstreamApiKeyHintEdit : fm.upstreamApiKeyHint} />
+            </div>
+            {mode === 'edit' && hasUpstreamKey && (
+              <Button type="button" variant="outline" className="mt-[22px]" onClick={() => setRevealOpen(true)}>
+                <Eye className="mr-1 h-3.5 w-3.5" /> {fm.reveal}
+              </Button>
+            )}
+          </div>
           <Text label={fm.baseUrlOverride} name="baseUrl" value={f.baseUrl ?? ''}
             onChange={(e) => set('baseUrl', e.target.value)}
             error={fieldErrorsOf(result)?.baseUrl}
@@ -251,7 +300,7 @@ export function ModelForm({
 
       <Section title={fm.capabilities}>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <Num label={fm.contextWindow} name="contextWindow" value={f.contextWindow} onChange={setNum('contextWindow')} step={1000} />
+          <Num label={`${fm.contextWindow} (M)`} name="contextWindow" value={f.contextWindowM} onChange={setNum('contextWindowM')} step={0.001} hint={fm.contextWindowMHint} />
           <Num label={fm.maxOutputTokens} name="maxOutputTokens" value={f.maxOutputTokens} onChange={setNum('maxOutputTokens')} step={256} />
           <Num label={fm.sortOrder} name="sortOrder" value={f.sortOrder} onChange={setNum('sortOrder')} step={1} />
           <Check label={fm.vision} checked={f.supportsVision} onChange={(v) => set('supportsVision', v)} />
@@ -337,6 +386,16 @@ export function ModelForm({
         </Button>
       </div>
     </form>
+
+    {mode === 'edit' && hasUpstreamKey && (
+      <RevealKeyDialog
+        locale={locale}
+        endpoint={`/api/admin/models/${model.id}/secret`}
+        open={revealOpen}
+        onClose={() => setRevealOpen(false)}
+      />
+    )}
+    </>
   );
 }
 
@@ -394,9 +453,10 @@ function Num(props: {
   value: number;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   step?: number;
+  hint?: string;
 }) {
   return (
-    <FieldShell label={props.label}>
+    <FieldShell label={props.label} hint={props.hint}>
       <Input
         type="number"
         name={props.name}
@@ -480,9 +540,9 @@ function PriceRow({
     <tr className="border-b last:border-0">
       <td className="px-4 py-2.5 font-medium">{label}</td>
       <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-muted-foreground">
-        {sym}{cost.toFixed(4)}
+        {sym}{fmtNum(cost)}
         {effective > cost && (
-          <span className="ml-1 opacity-70">(+{sym}{(effective - cost).toFixed(4)})</span>
+          <span className="ml-1 opacity-70">(+{sym}{fmtNum(effective - cost)})</span>
         )}
       </td>
       <td className="px-4 py-2.5 text-right">
@@ -490,7 +550,7 @@ function PriceRow({
           type="number"
           min={0}
           step={0.0001}
-          value={Number(sell.toFixed(6))}
+          value={Number(sell.toFixed(4))}
           disabled={readOnly}
           onChange={(e) => onSellChange(Number(e.target.value))}
           className={cn(
@@ -506,5 +566,103 @@ function PriceRow({
         {retail ? saveLabel(saving.toFixed(0)) : '—'}
       </td>
     </tr>
+  );
+}
+
+/** Step-up auth dialog: re-enter the admin login password to reveal the stored upstream key. */
+function RevealKeyDialog({
+  locale,
+  endpoint,
+  open,
+  onClose,
+}: {
+  locale: Locale;
+  endpoint: string;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const t = getDict(locale);
+  const fm = t.admin.forms.model;
+  const [password, setPassword] = useState('');
+  const [secret, setSecret] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  function close() {
+    setPassword('');
+    setSecret(null);
+    setCopied(false);
+    onClose();
+  }
+
+  async function confirm() {
+    if (!password || pending) return;
+    setPending(true);
+    try {
+      const res = await apiPostJson<{ secret: string }>(endpoint, { password });
+      if (res.code === '0000' && res.data?.secret) {
+        setSecret(res.data.secret);
+      } else {
+        toast.error(res.msg);
+      }
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function copy() {
+    if (!secret) return;
+    await navigator.clipboard.writeText(secret);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={close}>
+      <div className="w-full max-w-md rounded-lg border bg-background p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
+        <CardTitle className="text-sm font-semibold">{fm.revealTitle}</CardTitle>
+        {secret ? (
+          <div className="mt-4 space-y-4">
+            <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2">
+              <code className="flex-1 break-all font-mono text-xs">{secret}</code>
+              <button
+                type="button"
+                onClick={copy}
+                aria-label="copy"
+                className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                {copied ? <CheckIcon className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+              </button>
+            </div>
+            <Button type="button" variant="outline" onClick={close}>{t.admin.forms.cancel}</Button>
+          </div>
+        ) : (
+          <div className="mt-4 space-y-1.5">
+            <Label className="text-xs font-medium">{fm.revealPasswordLabel}</Label>
+            <Input
+              type="password"
+              value={password}
+              autoFocus
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  confirm();
+                }
+              }}
+            />
+            <p className="text-xs text-muted-foreground">{fm.revealPasswordHint}</p>
+            <div className="flex gap-2 pt-2">
+              <Button type="button" disabled={pending || !password} onClick={confirm}>
+                {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {fm.reveal}
+              </Button>
+              <Button type="button" variant="ghost" onClick={close}>{t.admin.forms.cancel}</Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

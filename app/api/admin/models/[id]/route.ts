@@ -5,6 +5,7 @@ import { updateModel, getModelByPublicId, getModelById } from '@/lib/repositorie
 import { getSettings } from '@/lib/repositories/settings';
 import {
   validatePricing,
+  formatViolationMessage,
   costSetOf,
   sellSetOf,
   addSurcharge,
@@ -31,6 +32,8 @@ export const PUT = withApi(
         : usdSurcharge;
 
     const write = buildWriteInput(data, surcharge);
+    // Empty upstream key on edit = keep the stored value (never wipe by accident).
+    if (data.upstreamApiKey === '') write.upstreamApiKey = undefined;
     if (write.modelId !== existing.modelId) {
       const dup = await getModelByPublicId(write.modelId);
       if (dup && dup.id !== existing.id) {
@@ -45,7 +48,7 @@ export const PUT = withApi(
       sellSetOf(write),
       settings.target_profit_percent,
     );
-    if (violations.length) throw businessRule(violations.map((v) => v.message).join(' '));
+    if (violations.length) throw businessRule(violations.map(formatViolationMessage).join(' '));
 
     await updateModel(params.id, write);
     revalidatePath('/admin/models');

@@ -5,21 +5,29 @@ import Link from 'next/link';
 import { MailCheck, CheckCircle2, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Field, FormError, FormSuccess } from '@/components/ui/form';
+import { Field } from '@/components/ui/form';
+import { toast } from '@/components/ui/toast';
 import { Shell } from './AuthForms';
 import { apiPostForm } from '@/lib/client/api';
 import { type ApiResponse, fieldErrorsOf, initialApiResponse } from '@/lib/server/api-response';
 import { getDict } from '@/lib/i18n';
 import type { Locale } from '@/lib/i18n/types';
 
-/** Small helper: controlled form submit → POST endpoint → ApiResponse state. */
+/** Controlled form submit → POST endpoint; failures surface as toasts. */
 function useApiForm() {
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<ApiResponse>(initialApiResponse());
-  const submit = (e: React.FormEvent<HTMLFormElement>, url: string) => {
+  const submit = (
+    e: React.FormEvent<HTMLFormElement>,
+    url: string,
+    onSuccess?: (res: ApiResponse) => void,
+  ) => {
     e.preventDefault();
     startTransition(async () => {
-      setState(await apiPostForm(url, new FormData(e.currentTarget)));
+      const res = await apiPostForm(url, new FormData(e.currentTarget));
+      setState(res);
+      if (res.code !== '0000') toast.error(res.msg);
+      else onSuccess?.(res);
     });
   };
   return { pending, state, submit };
@@ -39,9 +47,10 @@ export function ResendActivationForm({ locale, email }: { locale: Locale; email?
       ) : (
         <p className="mb-4 text-sm text-muted-foreground">{t.spamHint}</p>
       )}
-      <form onSubmit={(e) => submit(e, '/api/auth/resend-activation')} className="space-y-4">
-        <FormError message={state.msg} />
-        {state.code === '0000' && <FormSuccess message={t.resendIdle} />}
+      <form
+        onSubmit={(e) => submit(e, '/api/auth/resend-activation', () => toast.success(t.resendIdle))}
+        className="space-y-4"
+      >
         {email ? (
           <input type="hidden" name="email" value={email} />
         ) : (
@@ -80,7 +89,6 @@ export function ForgotPasswordForm({ locale }: { locale: Locale }) {
   return (
     <Shell title={t.title} subtitle={t.subtitle} footer={<BackToLogin locale={locale} />}>
       <form onSubmit={(e) => submit(e, '/api/auth/forgot-password')} className="space-y-4">
-        <FormError message={state.msg} />
         <Field label={t.email} htmlFor="email" error={fieldErrorsOf(state)?.email}>
           <Input id="email" name="email" type="email" placeholder="you@company.com" autoComplete="email" required />
         </Field>
@@ -116,7 +124,6 @@ export function ResetPasswordForm({ locale, token }: { locale: Locale; token: st
     <Shell title={t.title} subtitle={t.subtitle} footer={<BackToLogin locale={locale} />}>
       <form onSubmit={(e) => submit(e, '/api/auth/reset-password')} className="space-y-4">
         <input type="hidden" name="token" value={token} />
-        <FormError message={state.msg} />
         <Field label={t.newPassword} htmlFor="newPassword" hint={t.passwordHint} error={fieldErrorsOf(state)?.newPassword}>
           <Input id="newPassword" name="newPassword" type="password" placeholder="••••••••" autoComplete="new-password" required minLength={8} />
         </Field>

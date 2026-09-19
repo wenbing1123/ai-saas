@@ -75,9 +75,10 @@ export function mapModel(row: ModelRow): Model {
   return {
     id: row.id,
     provider: row.provider,
-    protocol: row.protocol as Model['protocol'],
+    protocols: row.protocols,
     modelId: row.modelId,
     upstreamModel: row.upstreamModel,
+    upstreamApiKey: row.upstreamApiKey,
     baseUrl: row.baseUrl,
     displayName: row.displayName,
     contextWindow: row.contextWindow,

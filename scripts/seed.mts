@@ -17,7 +17,7 @@
  * every table carries id / created_at / updated_at / deleted. Unique indexes
  * are partial on deleted = false, so ON CONFLICT carries the same predicate.
  */
-import { randomBytes, scryptSync, createHash } from 'node:crypto';
+import { randomBytes, scryptSync, createHash, createCipheriv } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -51,6 +51,17 @@ function hashPassword(password: string): string {
   const salt = randomBytes(16).toString('hex');
   const derived = scryptSync(password, salt, 64).toString('hex');
   return `scrypt$${salt}$${derived}`;
+}
+
+/** AES-256-GCM encrypt (matches lib/server/crypto.ts); null when ENCRYPTION_KEY unset. */
+function encryptWithAppKey(plaintext: string): string | null {
+  const hex = process.env.ENCRYPTION_KEY;
+  if (!hex || !/^[0-9a-fA-F]{64}$/.test(hex)) return null;
+  const key = Buffer.from(hex, 'hex');
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+  return `${iv.toString('hex')}.${cipher.getAuthTag().toString('hex')}.${ciphertext.toString('hex')}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -598,8 +609,8 @@ async function main() {
     `;
   }
   await sql`
-    INSERT INTO biz_api_token (user_id, name, key_hash, prefix)
-    VALUES (${ownerId}, 'Default key', ${ownerKeyHash}, ${ownerKey.slice(0, 14) + '…'})
+    INSERT INTO biz_api_token (user_id, name, key_hash, prefix, secret_encrypted)
+    VALUES (${ownerId}, 'Default key', ${ownerKeyHash}, ${ownerKey.slice(0, 14) + '…'}, ${encryptWithAppKey(ownerKey)})
   `;
 
   // ---- Models --------------------------------------------------------------

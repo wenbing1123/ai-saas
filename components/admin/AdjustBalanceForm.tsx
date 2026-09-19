@@ -6,7 +6,7 @@ import { Loader2, PlusCircle, MinusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { FormError, FormSuccess } from '@/components/ui/form';
+import { toast } from '@/components/ui/toast';
 import { apiPostForm } from '@/lib/client/api';
 import { type ApiResponse, initialApiResponse } from '@/lib/server/api-response';
 import { ErrorCodes } from '@/lib/server/errors';
@@ -25,6 +25,7 @@ export function AdjustBalanceForm({ locale, userId }: { locale: Locale; userId: 
     setResult(initialApiResponse());
     const value = Number(amount);
     if (!value || value <= 0) {
+      toast.error(fb.enterPositive);
       setResult({ code: ErrorCodes.VALIDATION_FAILED, msg: fb.enterPositive, data: {} });
       return;
     }
@@ -35,16 +36,17 @@ export function AdjustBalanceForm({ locale, userId }: { locale: Locale; userId: 
       const res = await apiPostForm(`/api/admin/users/${userId}/balance`, fd);
       setResult(res);
       if (res.code === '0000') {
+        toast.success(fb.success);
         setAmount('');
         router.refresh();
+      } else {
+        toast.error(res.msg);
       }
     });
   }
 
   return (
     <div className="space-y-4">
-      <FormError message={result.msg} />
-      {result.code === '0000' && <FormSuccess message={fb.success} />}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="adj-amount" className="text-xs font-medium">{fb.amount}</Label>

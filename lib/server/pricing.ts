@@ -195,14 +195,23 @@ export function savingsPct(retail: number, sell: number): number {
   return Math.max(0, ((retail - sell) / retail) * 100);
 }
 
+export type PricingField = 'input' | 'output' | 'cacheRead' | 'cacheWrite';
+
 export interface PricingViolation {
-  field: string;
-  message: string;
+  field: PricingField;
+  /** below_cost = selling under procurement cost; below_margin = under the platform margin floor. */
+  code: 'below_cost' | 'below_margin';
+  sell: number;
+  cost: number;
+  /** Minimum acceptable sell price (cost for below_cost, computed floor for below_margin). */
+  floor: number;
+  minMarkupPercent: number;
 }
 
 /**
  * Validate that sell prices clear BOTH the cost floor and the business margin
- * floor. Returns a list of violations (empty array = valid).
+ * floor. Returns structured violations (empty array = valid); render them with
+ * `formatViolationMessage` (English default) or localized dict entries.
  */
 export function validatePricing(
   cost: PriceSet,
@@ -210,32 +219,35 @@ export function validatePricing(
   minMarkupPercent: number,
 ): PricingViolation[] {
   const violations: PricingViolation[] = [];
-  const fields: Array<{ key: keyof PriceSet; label: string }> = [
-    { key: 'input', label: 'Input' },
-    { key: 'output', label: 'Output' },
-    { key: 'cacheRead', label: 'Cache read' },
-    { key: 'cacheWrite', label: 'Cache write' },
-  ];
+  const fields: PricingField[] = ['input', 'output', 'cacheRead', 'cacheWrite'];
 
-  for (const { key, label } of fields) {
+  for (const key of fields) {
     const c = cost[key];
     const s = sell[key];
     if (s < c) {
-      violations.push({
-        field: key,
-        message: `${label} sell price ($${s}) is below cost ($${c}) — this would lose money.`,
-      });
+      violations.push({ field: key, code: 'below_cost', sell: s, cost: c, floor: c, minMarkupPercent });
     } else if (c > 0) {
       const floor = round6(c * (1 + minMarkupPercent / 100));
       if (s < floor) {
-        violations.push({
-          field: key,
-          message: `${label} sell price yields less than the ${minMarkupPercent}% minimum margin (at least $${floor}).`,
-        });
+        violations.push({ field: key, code: 'below_margin', sell: s, cost: c, floor, minMarkupPercent });
       }
     }
   }
   return violations;
+}
+
+/** English fallback text for server-side guardrail errors (toasts show these). */
+export function formatViolationMessage(v: PricingViolation): string {
+  const labels: Record<PricingField, string> = {
+    input: 'Input',
+    output: 'Output',
+    cacheRead: 'Cache read',
+    cacheWrite: 'Cache write',
+  };
+  if (v.code === 'below_cost') {
+    return `${labels[v.field]} sell price ($${v.sell}) is below cost ($${v.cost}) — this would lose money.`;
+  }
+  return `${labels[v.field]} sell price yields less than the ${v.minMarkupPercent}% minimum margin (at least $${v.floor}).`;
 }
 
 // ---------------------------------------------------------------------------

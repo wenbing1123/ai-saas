@@ -291,12 +291,17 @@ export const models = pgTable(
     ...baseColumns,
     /** Upstream provider, Provider enum (1 OpenAI … 6 Custom). */
     provider: smallint('provider').notNull().default(Provider.OpenAI).$type<Provider>(),
-    /** Wire protocol the gateway speaks to the upstream, Protocol enum. */
-    protocol: smallint('protocol').notNull().default(Protocol.OpenAI).$type<Protocol>(),
+    /**
+     * Bitmask of supported wire protocols: bit1 (1) = OpenAI, bit2 (2) =
+     * Anthropic, 3 = both (served on /v1/chat/completions AND /v1/messages).
+     */
+    protocols: smallint('protocol').notNull().default(Protocol.OpenAI),
     /** Public model id used by customers in their requests, e.g. claude-sonnet-4-20250514 */
     modelId: varchar('model_id', { length: 100 }).notNull(),
     /** Actual model id sent upstream (allows aliases / version pinning). */
     upstreamModel: varchar('upstream_model', { length: 100 }).notNull(),
+    /** Optional per-model upstream API key; falls back to the provider key in settings. */
+    upstreamApiKey: text('upstream_api_key'),
     /** Optional explicit upstream base URL; falls back to provider env mapping. */
     baseUrl: text('base_url'),
     displayName: varchar('display_name', { length: 150 }).notNull(),
@@ -348,7 +353,7 @@ export const models = pgTable(
     check('biz_model_markup_non_negative', sql`${t.markupPercent} >= 0`),
     check('biz_model_provider_check', sql`${t.provider} BETWEEN 1 AND 10`),
     check('biz_model_cost_currency_check', sql`${t.costCurrency} IN (1, 2)`),
-    check('biz_model_protocol_check', sql`${t.protocol} IN (1, 2)`),
+    check('biz_model_protocol_check', sql`${t.protocols} IN (1, 2, 3)`),
   ],
 );
 
@@ -459,6 +464,8 @@ export const apiTokens = pgTable(
     keyHash: varchar('key_hash', { length: 64 }).notNull(),
     /** Display prefix, e.g. sk-nebula-a1b2… */
     prefix: varchar('prefix', { length: 24 }).notNull(),
+    /** AES-256-GCM encrypted full key (ENCRYPTION_KEY). Null → key cannot be re-viewed. */
+    secretEncrypted: text('secret_encrypted'),
     /** TokenStatus enum: 1 active, 2 revoked */
     status: smallint('status').notNull().default(TokenStatus.Active).$type<TokenStatus>(),
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }),

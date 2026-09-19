@@ -2,12 +2,12 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, Loader2, PencilLine, Eye } from 'lucide-react';
+import { Loader2, PencilLine, Eye } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { FormError } from '@/components/ui/form';
+import { toast } from '@/components/ui/toast';
 import { apiPostForm, apiPutForm } from '@/lib/client/api';
 import { type ApiResponse, fieldErrorsOf, initialApiResponse } from '@/lib/server/api-response';
 import type { DocPageRow } from '@/lib/db/schema';
@@ -91,20 +91,17 @@ export function DocForm({
           : await apiPostForm(endpoint, fd);
       setResult(res);
       if (res.code === '0000') {
+        toast.success(cms.saved);
         if (mode === 'create') router.push('/admin/docs');
         else router.refresh();
+      } else {
+        toast.error(res.msg);
       }
     });
   }
 
   return (
     <form onSubmit={submit} className="space-y-6">
-      {result.code === '0000' && mode === 'edit' && (
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
-          <CheckCircle2 className="h-4 w-4" /> {cms.saved}
-        </div>
-      )}
-      <FormError message={result.msg} />
 
       <Card>
         <CardHeader>

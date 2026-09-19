@@ -7,7 +7,7 @@ import { renderMarkdown } from '@/lib/server/markdown';
 import { gatewayBaseUrl } from '@/config/app';
 import { getLocale } from '@/lib/i18n/server';
 import { getDict } from '@/lib/i18n';
-import { PROVIDER_LABELS, PROTOCOL_LABELS } from '@/lib/db/enums';
+import { PROVIDER_LABELS, protocolLabelList } from '@/lib/db/enums';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +18,7 @@ async function renderDocBody(markdown: string): Promise<string> {
   const modelsTableHtml = `<div class="my-4 overflow-x-auto rounded-lg border"><table class="w-full min-w-[560px] text-sm"><thead><tr class="border-b bg-muted/40"><th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide">Model</th><th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide">Provider</th><th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide">Protocol</th><th class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide">Context</th></tr></thead><tbody>${models
     .map(
       (m) =>
-        `<tr class="border-b last:border-0"><td class="px-3 py-2"><div class="font-medium">${m.displayName}</div><div class="font-mono text-xs text-muted-foreground">${m.modelId}</div></td><td class="px-3 py-2 capitalize text-muted-foreground">${PROVIDER_LABELS[m.provider]}</td><td class="px-3 py-2 font-mono text-xs">${PROTOCOL_LABELS[m.protocol]}</td><td class="px-3 py-2 text-right tabular-nums text-muted-foreground">${m.contextWindow ? Math.round(m.contextWindow / 1000) + 'K' : '—'}</td></tr>`,
+        `<tr class="border-b last:border-0"><td class="px-3 py-2"><div class="font-medium">${m.displayName}</div><div class="font-mono text-xs text-muted-foreground">${m.modelId}</div></td><td class="px-3 py-2 capitalize text-muted-foreground">${PROVIDER_LABELS[m.provider]}</td><td class="px-3 py-2 font-mono text-xs">${protocolLabelList(m.protocols)}</td><td class="px-3 py-2 text-right tabular-nums text-muted-foreground">${m.contextWindow ? Math.round(m.contextWindow / 1000) + 'K' : '—'}</td></tr>`,
     )
     .join('')}</tbody></table></div>`;
 
@@ -55,6 +55,7 @@ export default async function DocPage({ params }: { params: { slug: string } }) 
       activeSlug={doc.slug}
       html={html}
       navLabel={t.marketing.docs.navTitle}
+      locale={locale}
       prev={prev}
       next={next}
     />

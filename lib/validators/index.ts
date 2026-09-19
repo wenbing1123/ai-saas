@@ -43,7 +43,8 @@ export const tokenNameSchema = z.object({
 /** Model admin form — every price is a USD-per-1M string from the form. */
 export const modelFormSchema = z.object({
   provider: z.string().trim().min(1).max(50),
-  protocol: z.enum(['openai', 'anthropic']),
+  protocolOpenai: z.coerce.boolean().default(false),
+  protocolAnthropic: z.coerce.boolean().default(false),
   modelId: z
     .string()
     .trim()
@@ -51,6 +52,7 @@ export const modelFormSchema = z.object({
     .max(100)
     .regex(/^[A-Za-z0-9._\-:]+$/, 'Only letters, numbers, dots, dashes, underscores and colons'),
   upstreamModel: z.string().trim().min(1).max(100),
+  upstreamApiKey: z.string().trim().max(200).optional().default(''),
   baseUrl: z.string().trim().url('Must be a valid URL').or(z.literal('')).optional(),
   displayName: z.string().trim().min(1).max(150),
   contextWindow: z.coerce.number().int().nonnegative(),
@@ -73,7 +75,11 @@ export const modelFormSchema = z.object({
   enabled: z.coerce.boolean().default(true),
   sortOrder: z.coerce.number().int(),
   autoPrices: z.coerce.boolean().default(false),
-});
+})
+  .refine((v) => v.protocolOpenai || v.protocolAnthropic, {
+    path: ['protocols'],
+    message: 'Select at least one protocol',
+  });
 
 export const planFormSchema = z.object({
   slug: z

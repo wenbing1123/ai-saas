@@ -4,7 +4,8 @@ import { useState, useTransition } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Field, FormError, FormSuccess } from '@/components/ui/form';
+import { Field } from '@/components/ui/form';
+import { toast } from '@/components/ui/toast';
 import { apiPostForm } from '@/lib/client/api';
 import { getDict, type Locale } from '@/lib/i18n';
 import { type ApiResponse, fieldErrorsOf, initialApiResponse } from '@/lib/server/api-response';
@@ -18,14 +19,15 @@ export function ChangePasswordForm({ locale }: { locale: Locale }) {
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     startTransition(async () => {
-      setState(await apiPostForm('/api/auth/change-password', new FormData(e.currentTarget)));
+      const res = await apiPostForm('/api/auth/change-password', new FormData(e.currentTarget));
+      setState(res);
+      if (res.code === '0000') toast.success(t.passwordUpdated);
+      else toast.error(res.msg);
     });
   }
 
   return (
     <form onSubmit={onSubmit} className="max-w-md space-y-4">
-      <FormError message={state.msg} />
-      {state.code === '0000' && <FormSuccess message={t.passwordUpdated} />}
       <Field label={t.currentPassword} htmlFor="currentPassword" error={fieldErrors?.currentPassword}>
         <Input id="currentPassword" name="currentPassword" type="password" autoComplete="current-password" required />
       </Field>

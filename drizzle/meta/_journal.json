@@ -71,6 +71,20 @@
       "when": 1789789960038,
       "tag": "0009_perfect_sabra",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789815878600,
+      "tag": "0010_api_token_secret_encrypted",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789820097005,
+      "tag": "0011_model_protocols_bitmask_upstream_key",
+      "breakpoints": true
     }
   ]
 }

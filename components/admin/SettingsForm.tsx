@@ -2,13 +2,13 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, Loader2, AlertTriangle } from 'lucide-react';
+import { Loader2, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { FormError } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from '@/components/ui/toast';
 import { apiPutForm } from '@/lib/client/api';
 import { type ApiResponse, initialApiResponse } from '@/lib/server/api-response';
 import type { PlatformSettings } from '@/lib/types';
@@ -67,18 +67,17 @@ export function SettingsForm({ locale, settings }: { locale: Locale; settings: P
     startTransition(async () => {
       const res = await apiPutForm('/api/admin/settings', fd);
       setResult(res);
-      if (res.code === '0000') router.refresh();
+      if (res.code === '0000') {
+        toast.success(s.saved);
+        router.refresh();
+      } else {
+        toast.error(res.msg);
+      }
     });
   }
 
   return (
     <form onSubmit={submit} className="space-y-6">
-      <FormError message={result.msg} />
-      {result.code === '0000' && (
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
-          <CheckCircle2 className="h-4 w-4" /> {s.saved}
-        </div>
-      )}
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>

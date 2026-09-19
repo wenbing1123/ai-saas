@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Field, FormError } from '@/components/ui/form';
-import { apiPostForm, apiDelete } from '@/lib/client/api';
+import { Field } from '@/components/ui/form';
+import { toast } from '@/components/ui/toast';
+import { apiPostForm, apiDelete, apiGet } from '@/lib/client/api';
 import { type ApiResponse, fieldErrorsOf, initialApiResponse } from '@/lib/server/api-response';
 import { gatewayBaseUrl } from '@/config/app';
 import { formatRelativeTime } from '@/lib/utils';
@@ -33,7 +34,12 @@ export function TokenManager({ tokens, locale }: { tokens: ApiToken[]; locale: L
     startTransition(async () => {
       const res = await apiPostForm<CreatedToken>('/api/tokens', new FormData(e.currentTarget));
       setState(res);
-      if (res.code === '0000') router.refresh();
+      if (res.code === '0000') {
+        toast.success(d.common.misc.operationSucceeded);
+        router.refresh();
+      } else {
+        toast.error(res.msg);
+      }
     });
   }
 
@@ -82,7 +88,6 @@ export function TokenManager({ tokens, locale }: { tokens: ApiToken[]; locale: L
               </div>
             </div>
           )}
-          <FormError message={state.msg} />
         </CardContent>
       </Card>
 
@@ -126,11 +131,29 @@ function TokenRow({ token, d }: { token: ApiToken; d: Dict }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
+  const [copiedKey, setCopiedKey] = useState(false);
+
+  /** Fetch the decrypted key and copy it. Legacy (hash-only) keys show a hint. */
+  async function copySecret() {
+    const res = await apiGet<{ secret: string }>(`/api/tokens/${token.id}/secret`);
+    if (res.code === '0000' && res.data) {
+      await navigator.clipboard.writeText(res.data.secret);
+      setCopiedKey(true);
+      setTimeout(() => setCopiedKey(false), 2000);
+    } else {
+      toast.error(res.msg);
+    }
+  }
 
   function revoke() {
     startTransition(async () => {
       const res = await apiDelete(`/api/tokens/${token.id}`);
-      if (res.code === '0000') router.refresh();
+      if (res.code === '0000') {
+        toast.success(res.msg);
+        router.refresh();
+      } else {
+        toast.error(res.msg);
+      }
     });
   }
 
@@ -149,21 +172,34 @@ function TokenRow({ token, d }: { token: ApiToken; d: Dict }) {
         </Badge>
       </td>
       <td className="py-2 text-right">
-        {token.status === TokenStatus.Active &&
-          (confirming ? (
-            <div className="flex items-center justify-end gap-2">
-              <Button type="button" size="sm" variant="destructive" disabled={pending} onClick={revoke}>
-                <AlertTriangle className="mr-1 h-3.5 w-3.5" /> {t.confirm}
-              </Button>
-              <Button type="button" size="sm" variant="ghost" onClick={() => setConfirming(false)}>
-                {t.cancel}
-              </Button>
-            </div>
-          ) : (
-            <Button type="button" size="sm" variant="ghost" onClick={() => setConfirming(true)}>
-              <Trash2 className="mr-1 h-3.5 w-3.5" /> {t.revoke}
+        {token.status === TokenStatus.Active && (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="mr-1 h-7 w-7 p-0"
+              onClick={copySecret}
+              title={copiedKey ? t.copied : t.copy}
+            >
+              {copiedKey ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
             </Button>
-          ))}
+            {confirming ? (
+              <>
+                <Button type="button" size="sm" variant="destructive" disabled={pending} onClick={revoke}>
+                  <AlertTriangle className="mr-1 h-3.5 w-3.5" /> {t.confirm}
+                </Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => setConfirming(false)}>
+                  {t.cancel}
+                </Button>
+              </>
+            ) : (
+              <Button type="button" size="sm" variant="ghost" onClick={() => setConfirming(true)}>
+                <Trash2 className="mr-1 h-3.5 w-3.5" /> {t.revoke}
+              </Button>
+            )}
+          </>
+        )}
       </td>
     </tr>
   );

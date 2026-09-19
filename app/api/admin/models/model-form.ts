@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 import { modelFormSchema } from '@/lib/validators';
 import { recommendSellPrices } from '@/lib/server/pricing';
+import { Protocol } from '@/lib/db/enums';
 import type { ModelWriteInput } from '@/lib/repositories/models';
 
 export type ModelFormValues = z.infer<typeof modelFormSchema>;
@@ -11,6 +12,8 @@ const on = (fd: FormData, key: string) => fd.get(key) === 'on';
 export function modelFormTransform(fd: FormData) {
   return {
     ...Object.fromEntries(fd),
+    protocolOpenai: on(fd, 'protocolOpenai'),
+    protocolAnthropic: on(fd, 'protocolAnthropic'),
     supportsVision: on(fd, 'supportsVision'),
     supportsTools: on(fd, 'supportsTools'),
     supportsReasoning: on(fd, 'supportsReasoning'),
@@ -41,11 +44,15 @@ export function buildWriteInput(data: ModelFormValues, infraSurcharge: number): 
         cacheWrite: data.sellCacheWritePer1m,
       };
 
+  const protocols =
+    (data.protocolOpenai ? Protocol.OpenAI : 0) | (data.protocolAnthropic ? Protocol.Anthropic : 0);
+
   return {
     provider: data.provider,
-    protocol: data.protocol,
+    protocols,
     modelId: data.modelId,
     upstreamModel: data.upstreamModel,
+    upstreamApiKey: data.upstreamApiKey || null,
     baseUrl: data.baseUrl || null,
     displayName: data.displayName,
     contextWindow: data.contextWindow,

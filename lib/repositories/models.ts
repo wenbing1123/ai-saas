@@ -3,17 +3,18 @@ import { getDb } from '@/lib/db/client';
 import { models } from '@/lib/db/schema';
 import { mapModel } from './mappers';
 import type { Model } from '@/lib/types';
-import { PROVIDER_CODES, PROTOCOL_CODES, CURRENCY_CODES, Currency } from '@/lib/db/enums';
+import { PROVIDER_CODES, CURRENCY_CODES, Currency } from '@/lib/db/enums';
 import { cache, prefixedKey, getRedis } from '@/lib/redis/client';
 import { redisKeys, redisTtl } from '@/lib/redis/keys';
 
 export interface ModelWriteInput {
   /** Wire label, e.g. 'openai' — converted to the Provider enum on write. */
   provider: string;
-  /** Wire label 'openai' | 'anthropic' — converted to the Protocol enum on write. */
-  protocol: 'openai' | 'anthropic';
+  /** Bitmask of supported protocols: 1 = OpenAI, 2 = Anthropic, 3 = both. */
+  protocols: number;
   modelId: string;
   upstreamModel: string;
+  upstreamApiKey?: string | null;
   baseUrl?: string | null;
   displayName: string;
   contextWindow: number;
@@ -99,9 +100,10 @@ export async function createModel(input: ModelWriteInput) {
     .insert(models)
     .values({
       provider: PROVIDER_CODES[input.provider]!,
-      protocol: PROTOCOL_CODES[input.protocol]!,
+      protocols: input.protocols,
       modelId: input.modelId,
       upstreamModel: input.upstreamModel,
+      upstreamApiKey: input.upstreamApiKey || null,
       baseUrl: input.baseUrl || null,
       displayName: input.displayName,
       contextWindow: input.contextWindow,
@@ -131,14 +133,14 @@ export async function createModel(input: ModelWriteInput) {
 
 export async function updateModel(id: string, patch: Partial<ModelWriteInput>) {
   const db = getDb();
-  const { provider, protocol, costCurrency, ...rest } = patch;
+  const { provider, costCurrency, upstreamApiKey, ...rest } = patch;
   const rows = await db
     .update(models)
     .set({
       ...rest,
       ...(provider !== undefined ? { provider: PROVIDER_CODES[provider]! } : {}),
-      ...(protocol !== undefined ? { protocol: PROTOCOL_CODES[protocol]! } : {}),
       ...(costCurrency !== undefined ? { costCurrency: CURRENCY_CODES[costCurrency] ?? Currency.USD } : {}),
+      ...(upstreamApiKey !== undefined ? { upstreamApiKey: upstreamApiKey || null } : {}),
       updatedAt: new Date(),
     })
     .where(and(eq(models.id, id), eq(models.deleted, 0)))

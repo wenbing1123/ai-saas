@@ -139,9 +139,21 @@ export const PROTOCOL_LABELS: Record<Protocol, string> = {
   [Protocol.Anthropic]: 'anthropic',
 };
 
-export const PROTOCOL_CODES: Record<string, Protocol> = Object.fromEntries(
-  Object.entries(PROTOCOL_LABELS).map(([code, label]) => [label, Number(code) as Protocol]),
-) as Record<string, Protocol>;
+/**
+ * Model.protocols values are bitmasks of Protocol (Protocol.OpenAI = 1,
+ * Protocol.Anthropic = 2, 3 = both), so bit-testing works directly.
+ */
+export function supportsProtocol(protocols: number, p: Protocol): boolean {
+  return (protocols & p) !== 0;
+}
+
+/** 'openai' / 'openai · anthropic' — for admin lists and docs tables. */
+export function protocolLabelList(protocols: number): string {
+  return [Protocol.OpenAI, Protocol.Anthropic]
+    .filter((p) => supportsProtocol(protocols, p))
+    .map((p) => PROTOCOL_LABELS[p])
+    .join(' · ');
+}
 
 export const CURRENCY_LABELS: Record<Currency, string> = {
   [Currency.USD]: 'USD',
